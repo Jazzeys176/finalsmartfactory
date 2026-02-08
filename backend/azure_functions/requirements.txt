@@ -1,5 +1,5 @@
 azure-functions
+azure-cosmos==4.5.1
 requests
-azure-storage-blob
-pandas
 python-dotenv
+pandas

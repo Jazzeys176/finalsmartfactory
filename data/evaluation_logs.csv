@@ -1,0 +1,7 @@
+timestamp,evaluator_name,trace_id,score,duration,status,action
+2026-02-03 10:00:28.594890+00:00,Hallucination Detector,00d567f2-2429-4d4d-a968-db8052ca0f2a,0.76,329.11,Completed,View Trace
+2026-02-03 10:00:28.594913+00:00,Context Relevance,00d567f2-2429-4d4d-a968-db8052ca0f2a,0.84,349.16,Completed,View Trace
+2026-02-03 10:00:28.594923+00:00,Conciseness Check,00d567f2-2429-4d4d-a968-db8052ca0f2a,0.93,292.29,Completed,View Trace
+2026-02-03 10:00:28.594952+00:00,Hallucination Detector,65ecf140-8734-41c8-bd8d-f911b676b32f,0.28,202.05,Completed,View Trace
+2026-02-03 10:00:28.594976+00:00,Context Relevance,65ecf140-8734-41c8-bd8d-f911b676b32f,0.23,466.62,Completed,View Trace
+2026-02-03 10:00:28.594992+00:00,Conciseness Check,65ecf140-8734-41c8-bd8d-f911b676b32f,0.1,306.67,Completed,View Trace

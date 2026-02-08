@@ -1,11 +1,14 @@
 {
-  "scriptFile": "__init__.py",
   "bindings": [
     {
-      "name": "mytimer",
-      "type": "timerTrigger",
+      "type": "cosmosDBTrigger",
       "direction": "in",
-      "schedule": "20 */2 * * * *"
+      "name": "documents",
+      "connection": "COSMOS_CONN_TRIGGER",
+      "databaseName": "llmops-data",
+      "containerName": "traces",
+      "leaseContainerName": "leases-evaluator",
+      "createLeaseContainerIfNotExists": true
     }
   ]
 }

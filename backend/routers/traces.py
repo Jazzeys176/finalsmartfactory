@@ -1,23 +1,17 @@
-from fastapi import APIRouter, HTTPException
-from collections import defaultdict
-from utils.blob_reader import read_jsonl_from_blob
 import math
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, Query
+
+# 🚀 Import the shared container
+from utils.cosmos import traces_container
 
 router = APIRouter()
 
-CONTAINER_NAME = "llmops-data"
-TRACES_BLOB_PATH = "traces/traces.jsonl"
-EVALS_BLOB_PATH = "evaluations/evaluations.jsonl"
 
-
-# -------------------------------
+# -----------------------------
 # Helpers
-# -------------------------------
-
+# -----------------------------
 def scrub(obj):
-    """
-    Ensure no NaN / Inf values leak to UI
-    """
     if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
         return None
     if isinstance(obj, dict):
@@ -27,73 +21,116 @@ def scrub(obj):
     return obj
 
 
-# -------------------------------
-# GET /api/traces
-# -------------------------------
+# -----------------------------
+# NORMALIZATION
+# -----------------------------
+def parse_timestamp(ts):
+    if isinstance(ts, str):
+        return ts
+    if isinstance(ts, (int, float)):
+        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+    if isinstance(ts, datetime):
+        return ts.astimezone(timezone.utc).isoformat()
+    return None
 
+
+def normalize_trace(t: dict) -> dict:
+    return {
+        "trace_id": t.get("trace_id") or t.get("id"),
+        "session_id": t.get("session_id"),
+        "user_id": t.get("user_id"),
+        "trace_name": t.get("trace_name"),
+
+        "input": t.get("input"),
+        "output": t.get("output"),
+
+        "timestamp": parse_timestamp(
+            t.get("timestamp")
+            or t.get("created_at")
+            or t.get("_ts")
+        ),
+
+        "latency_ms": (
+            t.get("latency_ms")
+            or t.get("latency")
+            or 0
+        ),
+
+        "tokens": t.get("tokens"),
+        "tokens_in": t.get("tokens_in"),
+        "tokens_out": t.get("tokens_out"),
+
+        "cost": t.get("cost"),
+        "model": t.get("model"),
+    }
+
+
+# -----------------------------
+# Routes
+# -----------------------------
 @router.get("")
-def get_all_traces():
-    """
-    Returns all traces with aggregated evaluation scores
-    """
+def get_all_traces(
+    session_id: str | None = Query(None),
+    user_id: str | None = Query(None),
+    model: str | None = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    try:
+        query = "SELECT * FROM c"
+        parameters = []
+        filters = []
 
-    # Load traces from blob
-    traces = read_jsonl_from_blob(
-        container_name=CONTAINER_NAME,
-        blob_path=TRACES_BLOB_PATH
-    )
+        if session_id:
+            filters.append("c.session_id = @session_id")
+            parameters.append({"name": "@session_id", "value": session_id})
 
-    if not traces:
-        return []
+        if user_id:
+            filters.append("c.user_id = @user_id")
+            parameters.append({"name": "@user_id", "value": user_id})
 
-    # Load evaluations from blob
-    evals = read_jsonl_from_blob(
-        container_name=CONTAINER_NAME,
-        blob_path=EVALS_BLOB_PATH
-    )
+        if model:
+            filters.append("c.model = @model")
+            parameters.append({"name": "@model", "value": model})
 
-    # Build trace_id -> {evaluator_name: score}
-    scores_map = defaultdict(dict)
-    for e in evals:
-        score = e.get("score")
-        if score is None:
-            continue
-        scores_map[e["trace_id"]][e["evaluator_name"]] = score
+        if filters:
+            query += " WHERE " + " AND ".join(filters)
 
-    # Inject scores into traces
-    for t in traces:
-        t["scores"] = scores_map.get(t["trace_id"], {})
+        query += " ORDER BY c.timestamp DESC"
 
-    return scrub(traces)
+        # 🚀 SAFE COSMOS QUERY (NO PAGINATION TOKENS)
+        raw = list(
+            traces_container.query_items(
+                query=query,
+                parameters=parameters,
+                enable_cross_partition_query=True,
+            )
+        )
 
+        normalized = [normalize_trace(t) for t in raw[:limit]]
+        return scrub(normalized)
 
-# -------------------------------
-# GET /api/traces/{trace_id}
-# -------------------------------
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{trace_id}")
 def get_trace(trace_id: str):
-    """
-    Returns a single trace with its evaluation scores
-    """
+    try:
+        query = "SELECT * FROM c WHERE c.trace_id = @trace_id"
+        params = [{"name": "@trace_id", "value": trace_id}]
 
-    traces = read_jsonl_from_blob(
-        container_name=CONTAINER_NAME,
-        blob_path=TRACES_BLOB_PATH
-    )
+        items = list(
+            traces_container.query_items(
+                query=query,
+                parameters=params,
+                enable_cross_partition_query=True,
+            )
+        )
 
-    trace = next((t for t in traces if t["trace_id"] == trace_id), None)
-    if not trace:
-        raise HTTPException(404, "Trace not found")
+        if not items:
+            raise HTTPException(status_code=404, detail="Trace not found")
 
-    evals = read_jsonl_from_blob(
-        container_name=CONTAINER_NAME,
-        blob_path=EVALS_BLOB_PATH
-    )
+        return scrub(normalize_trace(items[0]))
 
-    trace["scores"] = {}
-    for e in evals:
-        if e["trace_id"] == trace_id and e.get("score") is not None:
-            trace["scores"][e["evaluator_name"]] = e["score"]
-
-    return scrub(trace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

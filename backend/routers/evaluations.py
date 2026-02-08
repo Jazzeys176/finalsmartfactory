@@ -1,20 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query
-from utils.blob_reader import read_jsonl_from_blob
 import math
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, Query
+
+# 🚀 Import the shared containers
+from utils.cosmos import evaluations_container
 
 router = APIRouter()
 
-CONTAINER_NAME = "llmops-data"
-EVALS_BLOB_PATH = "evaluations/evaluations.jsonl"
-
-# -------------------------------
+# -----------------------------
 # Helpers
-# -------------------------------
-
+# -----------------------------
 def scrub(obj):
-    """
-    Deep clean any leftover NaN or Inf values to ensure JSON safety
-    """
     if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
         return None
     if isinstance(obj, dict):
@@ -23,44 +19,128 @@ def scrub(obj):
         return [scrub(i) for i in obj]
     return obj
 
-# -------------------------------
-# GET /api/evaluations
-# -------------------------------
 
+# -----------------------------
+# NORMALIZATION
+# -----------------------------
+
+ALLOWED_STATUS = {"Completed", "Error", "Timeout"}
+
+
+def parse_timestamp(ts):
+    if isinstance(ts, str):
+        return ts
+    if isinstance(ts, (int, float)):
+        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+    if isinstance(ts, datetime):
+        return ts.astimezone(timezone.utc).isoformat()
+    return None
+
+
+def compute_duration(e: dict):
+    if isinstance(e.get("duration_ms"), (int, float)):
+        return int(e["duration_ms"])
+
+    if isinstance(e.get("duration"), (int, float)):
+        return int(e["duration"])
+
+    if isinstance(e.get("latency_ms"), (int, float)):
+        return int(e["latency_ms"])
+
+    if isinstance(e.get("eval_latency"), (int, float)):
+        return int(e["eval_latency"])
+
+    start = e.get("start_time")
+    end = e.get("end_time")
+    try:
+        if start and end:
+            start_dt = datetime.fromisoformat(start)
+            end_dt = datetime.fromisoformat(end)
+            return int((end_dt - start_dt).total_seconds() * 1000)
+    except:
+        pass
+
+    return 0
+
+
+def normalize_status(e: dict, score):
+    raw = e.get("status")
+    if raw in ALLOWED_STATUS:
+        return raw
+
+    if raw:
+        rl = raw.lower()
+        if "timeout" in rl:
+            return "Timeout"
+        if "error" in rl or "fail" in rl:
+            return "Error"
+
+    if score is not None:
+        return "Completed"
+
+    return "Error"
+
+
+def normalize_eval(e: dict) -> dict:
+    score = e.get("score")
+    duration_ms = compute_duration(e)
+
+    return {
+        "evaluator_name": e.get("evaluator_name"),
+        "trace_id": e.get("trace_id"),
+
+        "score": score,
+
+        "timestamp": parse_timestamp(
+            e.get("timestamp")
+            or e.get("created_at")
+            or e.get("_ts")
+        ),
+
+        "duration_ms": duration_ms,
+        "status": normalize_status(e, score),
+    }
+
+
+# -----------------------------
+# Routes
+# -----------------------------
 @router.get("")
 def get_all_evaluations(
-    evaluator: str = Query(None),
-    trace_id: str = Query(None),
-    limit: int = 200
+    evaluator: str | None = Query(None),
+    trace_id: str | None = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
 ):
-    """
-    Returns filtered evaluation logs from blob storage
-    """
+    try:
+        # Base query
+        query = "SELECT * FROM c"
+        parameters = []
 
-    # 1. Load data from blob
-    evals = read_jsonl_from_blob(
-        container_name=CONTAINER_NAME,
-        blob_path=EVALS_BLOB_PATH
-    )
+        filters = []
+        if evaluator:
+            filters.append("c.evaluator_name = @evaluator")
+            parameters.append({"name": "@evaluator", "value": evaluator})
 
-    if not evals:
-        return []
+        if trace_id:
+            filters.append("c.trace_id = @trace_id")
+            parameters.append({"name": "@trace_id", "value": trace_id})
 
-    # 2. Filtering logic
-    filtered_evals = evals
-    
-    if evaluator:
-        filtered_evals = [e for e in filtered_evals if e.get("evaluator_name") == evaluator]
+        if filters:
+            query += " WHERE " + " AND ".join(filters)
 
-    if trace_id:
-        filtered_evals = [e for e in filtered_evals if e.get("trace_id") == trace_id]
+        query += " ORDER BY c.timestamp DESC"
 
-    # 3. Sorting (Descending by timestamp)
-    # Assumes timestamp is in a sortable string format (ISO 8601) or numeric
-    filtered_evals.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        # 🚀 Run query (using shared container)
+        raw = list(
+            evaluations_container.query_items(
+                query=query,
+                parameters=parameters,
+                enable_cross_partition_query=True,
+            )
+        )
 
-    # 4. Limit results
-    results = filtered_evals[:limit]
+        normalized = [normalize_eval(e) for e in raw[:limit]]
+        return scrub(normalized)
 
-    # 5. Scrub and return
-    return scrub(results)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

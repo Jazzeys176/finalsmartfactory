@@ -1,0 +1,5 @@
+evaluator_name,avg_score
+conciseness,0.0
+context_relevance,0.7066666666666667
+hallucination,0.5666666666666667
+hallucination_llm,0.26333333333333336

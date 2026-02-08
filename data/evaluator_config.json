@@ -1,0 +1,32 @@
+[
+  {
+    "evaluator_id": "hallucination_prod_v1",
+    "name": "Production Hallucination Check",
+    "template_id": "hallucination_v1",
+    "score_name": "hallucination",
+    "active": true,
+    "sampling": 0.20,
+    "target": "trace",
+    "created_at": "2026-01-13"
+  },
+  {
+    "evaluator_id": "context_relevance_prod_v1",
+    "name": "Context Relevance Monitor",
+    "template_id": "context_relevance_v1",
+    "score_name": "context_relevance",
+    "active": true,
+    "sampling": 0.50,
+    "target": "trace",
+    "created_at": "2026-01-18"
+  },
+  {
+    "evaluator_id": "conciseness_prod_v1",
+    "name": "Conciseness Score Monitor",
+    "template_id": "conciseness_v1",
+    "score_name": "conciseness",
+    "active": true,
+    "sampling": 0.30,
+    "target": "trace",
+    "created_at": "2026-01-20"
+  }
+]

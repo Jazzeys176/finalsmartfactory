@@ -1,0 +1,32 @@
+[
+  {
+    "template_id": "hallucination_v1",
+    "name": "Hallucination Detector",
+    "version": "1.0",
+    "description": "Detects hallucinations by comparing question, context, and answer.",
+    "model": "llama-3.3-70b-versatile",
+    "inputs": ["question", "context", "answer"],
+    "template": "Given the context: {{context}} And the response: {{response}} Rate the hallucination level from 0 (no hallucination) to 1 (complete hallucination).",
+    "updated_at": "2026-01-30T19:42:00Z"
+  },
+  {
+    "template_id": "context_relevance_v1",
+    "name": "Context Relevance",
+    "version": "1.0",
+    "description": "Evaluates relevance of retrieved context to the question.",
+    "model": "llama-3.3-70b-versatile",
+    "inputs": ["question", "context"],
+    "template": "Query: {{query}} Context: {{context}} Rate relevance from 0 to 1.",
+    "updated_at": "2026-01-29T17:40:00Z"
+  },
+  {
+    "template_id": "conciseness_v1",
+    "name": "Conciseness Check",
+    "version": "1.0",
+    "description": "Evaluates unnecessary verbosity or padded explanation.",
+    "model": "llama-3.3-70b-versatile",
+    "inputs": ["question", "context", "answer"],
+    "template": "Evaluate if the answer is concise: {{answer}} Using context: {{context}}.",
+    "updated_at": "2026-01-29T17:50:00Z"
+  }
+]

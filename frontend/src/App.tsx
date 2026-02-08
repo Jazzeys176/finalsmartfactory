@@ -11,6 +11,13 @@ import Annotations from "./pages/Annotations";
 import Audit from "./pages/Audit";
 import Settings from "./pages/Settings";
 import Prompts from "./pages/Prompts";
+import CreateTemplate from "./pages/CreateTemplate";
+
+
+
+
+// ⭐ ADD THIS IMPORT
+import CreateEvaluator from "./pages/CreateEvaluator";
 
 import Sidebar from "./components/Sidebar";
 
@@ -29,7 +36,11 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/sessions" element={<Sessions />} />
               <Route path="/traces" element={<Traces />} />
+
               <Route path="/evaluators" element={<Evaluators />} />
+
+              <Route path="/evaluators/new" element={<CreateEvaluator />} />
+              <Route path="/templates/new" element={<CreateTemplate />} />
               <Route path="/annotations" element={<Annotations />} />
               <Route path="/prompts" element={<Prompts />} />
               <Route path="/alerts" element={<Alerts />} />
