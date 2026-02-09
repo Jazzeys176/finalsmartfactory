@@ -3,6 +3,38 @@ import { ChevronDown, ChevronLeft } from "lucide-react";
 import { api } from "../api/client";
 import { useNavigate } from "react-router-dom";
 
+// ========================================
+// TOAST COMPONENT
+// ========================================
+const Toast = ({
+  message,
+  type,
+  onClose,
+}: {
+  message: string;
+  type: "success" | "error";
+  onClose: () => void;
+}) => {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div
+      className={`fixed bottom-6 right-6 min-w-[260px] max-w-[360px] px-5 py-3 rounded-xl 
+        border shadow-xl backdrop-blur-md animate-fadeIn 
+        ${
+          type === "success"
+            ? "bg-[#0e1713] border-[#13bba4] text-[#13bba4]"
+            : "bg-[#1b0e0e] border-red-500 text-red-400"
+        }`}
+    >
+      <p className="text-sm font-semibold">{message}</p>
+    </div>
+  );
+};
+
 const CreateEvaluator: React.FC = () => {
   const navigate = useNavigate();
 
@@ -13,7 +45,9 @@ const CreateEvaluator: React.FC = () => {
   const [name, setName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
-  const [enabled, setEnabled] = useState(true);
+
+  // 🔥 active / inactive toggle
+  const [status, setStatus] = useState<"active" | "inactive">("active");
 
   // TARGET TYPE
   const [targetType, setTargetType] = useState<"traces" | "dataset">("traces");
@@ -27,7 +61,19 @@ const CreateEvaluator: React.FC = () => {
   const [samplingRate, setSamplingRate] = useState(100);
   const [delaySeconds, setDelaySeconds] = useState(0);
 
-  /** LOAD TEMPLATES */
+  // TOAST
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+  };
+
+  // ========================================
+  // LOAD TEMPLATES
+  // ========================================
   useEffect(() => {
     (async () => {
       try {
@@ -40,7 +86,7 @@ const CreateEvaluator: React.FC = () => {
     })();
   }, []);
 
-  /** When template selected → generate mapping inputs */
+  // When template selected → generate mapping inputs
   useEffect(() => {
     if (!selectedTemplate) return;
 
@@ -49,20 +95,22 @@ const CreateEvaluator: React.FC = () => {
       inputs.map((v: string) => ({
         variable: v,
         source: "",
-      }))
+      })),
     );
   }, [selectedTemplate]);
 
-  /** CREATE EVALUATOR ACTION */
+  // ========================================
+  // CREATE EVALUATOR
+  // ========================================
   const handleCreate = async () => {
-    if (!selectedTemplate) return alert("Select a template first.");
-    if (!name.trim()) return alert("Enter evaluator name.");
+    if (!selectedTemplate)
+      return showToast("error", "Please select a template.");
 
-    // Validate that variable mapping has no empty selections
+    if (!name.trim()) return showToast("error", "Evaluator name is required.");
+
     const emptyMapping = variableMapping.some((m) => !m.source);
-    if (emptyMapping) {
-      return alert("Please complete all variable mappings.");
-    }
+    if (emptyMapping)
+      return showToast("error", "Please complete all variable mappings.");
 
     const payload = {
       score_name: name.trim(),
@@ -71,10 +119,13 @@ const CreateEvaluator: React.FC = () => {
         model: selectedTemplate.model,
         prompt_version: "v1",
       },
-      status: enabled ? "enabled" : "disabled",
+
+      // 🔥 FIXED TO MATCH BACKEND
+      status: status, // "active" / "inactive"
+
       target: targetType,
       variable_mapping: Object.fromEntries(
-        variableMapping.map((m) => [m.variable, m.source])
+        variableMapping.map((m) => [m.variable, m.source]),
       ),
       execution: {
         sampling_rate: samplingRate / 100,
@@ -82,22 +133,24 @@ const CreateEvaluator: React.FC = () => {
       },
     };
 
-    console.log("Sending evaluator payload:", payload);
+    try {
+      await api.post("/evaluators", payload);
+      showToast("success", "Evaluator created successfully!");
 
-    await api.post("/evaluators", payload);
-
-    alert("Evaluator created!");
-    navigate("/evaluators"); // Redirect to Evaluators list
+      setTimeout(() => navigate("/evaluators"), 1200);
+    } catch {
+      showToast("error", "Failed to create evaluator.");
+    }
   };
 
   if (loading) {
-    return <div className="text-white p-10">Loading templates...</div>;
+    return <div className="text-white p-10">Loading Evaluator Create...</div>;
   }
 
   return (
-    <div className="flex justify-center bg-[#0e1117] text-white min-h-screen p-10">
+    <div className="flex justify-center bg-[#0e1117] text-white min-h-screen p-10 relative">
       <div className="w-full max-w-[60vw] space-y-10">
-        {/* BACK BUTTON + TITLE */}
+        {/* BACK + TITLE */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate("/evaluators")}
@@ -115,21 +168,20 @@ const CreateEvaluator: React.FC = () => {
 
           <div>
             <h1 className="text-3xl font-bold">Create Evaluator</h1>
-            <p className="text-gray-400 text-sm">
-              Configure an automated evaluation task
-            </p>
+            <p className="text-gray-400 text-sm">Configure your evaluator</p>
           </div>
         </div>
 
-        {/* BASIC INFORMATION */}
+        {/* BASIC INFO */}
         <section className="bg-[#161a23] border border-gray-800 rounded-2xl p-6">
           <h2 className="text-xl font-bold mb-6">Basic Information</h2>
 
           <div className="grid grid-cols-2 gap-6">
-
-            {/* Evaluator Name */}
+            {/* Name */}
             <div className="flex flex-col">
-              <label className="text-sm text-gray-400 mb-2">Evaluator Name</label>
+              <label className="text-sm text-gray-400 mb-2">
+                Evaluator Name
+              </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -145,14 +197,22 @@ const CreateEvaluator: React.FC = () => {
               <div className="relative">
                 <button
                   onClick={() => setShowTemplateMenu((p) => !p)}
-                  className="w-full flex justify-between items-center bg-[#0e1117] border border-gray-800 rounded-lg px-4 py-2 text-sm"
+                  className="w-full flex justify-between items-center bg-black border border-gray-800 rounded-lg px-4 py-2 text-sm text-white"
                 >
                   {selectedTemplate ? selectedTemplate.name : "Select template"}
                   <ChevronDown size={16} />
                 </button>
 
                 {showTemplateMenu && (
-                  <div className="absolute mt-1 w-full bg-[#161a23] border border-gray-800 rounded-xl shadow-lg z-50">
+                  <div
+                    className="
+      absolute mt-1 w-full 
+      bg-[#0e1117] 
+      border border-gray-800 
+      rounded-xl shadow-lg z-50 
+      overflow-hidden
+    "
+                  >
                     {templates.map((t) => (
                       <button
                         key={t.template_id}
@@ -160,7 +220,13 @@ const CreateEvaluator: React.FC = () => {
                           setSelectedTemplate(t);
                           setShowTemplateMenu(false);
                         }}
-                        className="block w-full text-left px-4 py-2 hover:bg-[#1c212e] text-sm"
+                        className="
+          block w-full text-left px-4 py-2 text-sm 
+          text-white 
+          bg-[#0e1117]
+          hover:bg-[#13bba4] hover:text-black 
+          transition
+        "
                       >
                         {t.name}
                       </button>
@@ -171,22 +237,26 @@ const CreateEvaluator: React.FC = () => {
             </div>
           </div>
 
-          {/* Enabled Switch */}
+          {/* STATUS SWITCH */}
           <div className="flex items-center gap-3 mt-6">
-            <span className="text-gray-400 text-sm">Enabled</span>
+            <span className="text-gray-400 text-sm">Status</span>
 
             <button
-              onClick={() => setEnabled(!enabled)}
-              className={`relative w-12 h-6 rounded-full transition ${
-                enabled ? "bg-[#13bba4]" : "bg-gray-700"
+              onClick={() =>
+                setStatus(status === "active" ? "inactive" : "active")
+              }
+              className={`relative w-14 h-6 rounded-full transition ${
+                status === "active" ? "bg-[#13bba4]" : "bg-gray-700"
               }`}
             >
               <span
                 className={`absolute top-1 left-1 w-4 h-4 bg-black rounded-full transition ${
-                  enabled ? "translate-x-6" : ""
+                  status === "active" ? "translate-x-8" : ""
                 }`}
               />
             </button>
+
+            <span className="text-sm text-gray-400">{status}</span>
           </div>
         </section>
 
@@ -199,7 +269,7 @@ const CreateEvaluator: React.FC = () => {
               className={`px-5 py-2 rounded-lg font-bold text-sm ${
                 targetType === "traces"
                   ? "bg-[#13bba4] text-black"
-                  : "bg-[#0e1117] text-gray-400 border border-gray-800"
+                  : "bg-black text-gray-400 border border-gray-800"
               }`}
             >
               Traces
@@ -210,7 +280,7 @@ const CreateEvaluator: React.FC = () => {
               className={`px-5 py-2 rounded-lg font-bold text-sm ${
                 targetType === "dataset"
                   ? "bg-[#13bba4] text-black"
-                  : "bg-[#0e1117] text-gray-400 border border-gray-800"
+                  : "bg-black text-gray-400 border border-gray-800"
               }`}
             >
               Dataset
@@ -225,9 +295,7 @@ const CreateEvaluator: React.FC = () => {
           {variableMapping.map((m, idx) => (
             <div key={idx} className="grid grid-cols-2 gap-6 mb-4">
               <div className="flex items-center">
-                <span className="text-[#13bba4] font-mono text-sm">
-                  {`{{${m.variable}}}`}
-                </span>
+                <span className="text-[#13bba4] font-mono text-sm">{`{{${m.variable}}}`}</span>
               </div>
 
               <select
@@ -237,7 +305,7 @@ const CreateEvaluator: React.FC = () => {
                   updated[idx].source = e.target.value;
                   setVariableMapping(updated);
                 }}
-                className="bg-[#0e1117] border border-gray-800 rounded-lg px-4 py-2 text-sm"
+                className="bg-black border border-gray-800 rounded-lg px-4 py-2 text-sm text-white"
               >
                 <option value="">Select field</option>
                 <option value="trace.input">trace.input</option>
@@ -250,11 +318,10 @@ const CreateEvaluator: React.FC = () => {
           ))}
         </section>
 
-        {/* EXECUTION SETTINGS */}
+        {/* EXECUTION */}
         <section className="bg-[#161a23] border border-gray-800 rounded-2xl p-6">
           <h2 className="text-xl font-bold mb-6">Execution Settings</h2>
 
-          {/* Sampling Rate */}
           <div className="mb-6">
             <label className="text-sm text-gray-400 mb-2 block">
               Sampling Rate
@@ -272,7 +339,6 @@ const CreateEvaluator: React.FC = () => {
             </div>
           </div>
 
-          {/* Delay */}
           <div>
             <label className="text-sm text-gray-400 mb-2 block">
               Execution Delay
@@ -308,6 +374,15 @@ const CreateEvaluator: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* TOAST */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

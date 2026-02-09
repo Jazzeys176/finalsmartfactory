@@ -35,7 +35,13 @@ def create_evaluator(payload: dict):
         name = payload.get("score_name")
         template = payload.get("template")
         target = payload.get("target", "trace")
+
+        # 🔥 **status defaults to active**
         status = payload.get("status", "active")
+
+        if status not in {"active", "inactive"}:
+            raise HTTPException(400, "status must be 'active' or 'inactive'")
+
         execution = payload.get("execution", {})
 
         if not name:
@@ -48,25 +54,22 @@ def create_evaluator(payload: dict):
         doc = {
             "id": evaluator_id,
             "score_name": name,
-            "template": template,   # { id, name, version }
+            "template": template,
             "target": target,
-            "status": status,
+            "status": status,   # 🔥 only active/inactive
             "execution": execution,
             "created_at": datetime.utcnow().isoformat(),
         }
 
-        # ✅ CREATE EVALUATOR
+        # Save evaluator
         evaluators_container.create_item(doc)
 
-        # ✅ AUDIT LOG (AFTER SUCCESS)
+        # Audit
         audit_log(
             action="Evaluator Created",
             type="evaluator",
-            user="system",  # replace later with current_user.email
-            details=(
-                f"Created evaluator '{name}' "
-                f"using template '{template.get('id')}'"
-            ),
+            user="system",
+            details=f"Created evaluator '{name}' using template '{template.get('id')}'",
         )
 
         return {"status": "ok", "evaluator": doc}
@@ -83,28 +86,3 @@ def create_evaluator(payload: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ---------------------------------------------------------
-# UPDATE EVALUATOR STATUS (optional but common)
-# ---------------------------------------------------------
-@router.patch("/{evaluator_id}/status")
-def update_evaluator_status(evaluator_id: str, payload: dict):
-    try:
-        status = payload.get("status")
-        if status not in {"e", "disabled"}:
-            raise HTTPException(400, "status must be enabled or disabled")
-
-        evaluator = evaluators_container.read_item(
-            item=evaluator_id,
-            partition_key=evaluator_id,
-        )
-
-        evaluator["status"] = status
-        evaluator["updated_at"] = datetime.utcnow().isoformat()
-
-        evaluators_container.replace_item(evaluator_id, evaluator)
-
-        return {"status": "ok", "evaluator": evaluator}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

@@ -2,6 +2,39 @@ import React, { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+// =========================================================
+// TOAST COMPONENT (Neon Teal + Red Error, Fade Animation)
+// =========================================================
+const Toast = ({
+  message,
+  type,
+  onClose,
+}: {
+  message: string;
+  type: "success" | "error";
+  onClose: () => void;
+}) => {
+  React.useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div
+      className={`fixed bottom-6 right-6 min-w-[260px] max-w-[360px] px-5 py-3 rounded-xl 
+      border shadow-xl backdrop-blur-md animate-fadeIn
+      ${
+        type === "success"
+          ? "bg-[#0e1713] border-[#13bba4] text-[#13bba4]"
+          : "bg-[#1b0e0e] border-red-500 text-red-400"
+      }
+    `}
+    >
+      <p className="text-sm font-semibold">{message}</p>
+    </div>
+  );
+};
+
 export default function CreateTemplate() {
   const navigate = useNavigate();
 
@@ -11,16 +44,20 @@ export default function CreateTemplate() {
   const [outputType, setOutputType] = useState("numeric");
   const [prompt, setPrompt] = useState("");
 
-  // ⭐ NEW STATES
+  // TOAST STATE
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // =============================
-  // CREATE TEMPLATE API CALL
-  // =============================
-  const handleCreate = async () => {
+  const clearToast = () => {
     setSuccessMsg("");
     setErrorMsg("");
+  };
+
+  // =========================================================
+  // CREATE TEMPLATE API CALL
+  // =========================================================
+  const handleCreate = async () => {
+    clearToast();
 
     if (!templateName.trim() || !prompt.trim()) {
       setErrorMsg("Template name and prompt cannot be empty.");
@@ -53,14 +90,11 @@ export default function CreateTemplate() {
         throw new Error(text || "Failed to create template");
       }
 
-      // ⭐ SUCCESS
       setSuccessMsg("Template created successfully!");
 
-      // Redirect after 1.5 sec
       setTimeout(() => {
         navigate("/evaluators", { state: { tab: "templates" } });
       }, 1500);
-
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "Error creating template.");
@@ -68,19 +102,7 @@ export default function CreateTemplate() {
   };
 
   return (
-    <div className="w-full px-10 py-6 text-white space-y-10 min-h-screen bg-[#0e1117]">
-
-      {/* ⭐ ALERTS */}
-      {successMsg && (
-        <div className="mb-4 p-3 rounded-lg bg-green-600 text-black font-semibold">
-          ✅ {successMsg}
-        </div>
-      )}
-      {errorMsg && (
-        <div className="mb-4 p-3 rounded-lg bg-red-600 text-white font-semibold">
-          ❌ {errorMsg}
-        </div>
-      )}
+    <div className="w-full px-10 py-6 text-white space-y-10 min-h-screen bg-[#0e1117] relative">
 
       {/* BACK BUTTON + TITLE */}
       <div className="flex items-center gap-4">
@@ -108,12 +130,15 @@ export default function CreateTemplate() {
         </div>
       </div>
 
-      {/* GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
+      {/* =============================== */}
+      {/* 60 / 40 GRID */}
+      {/* =============================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-10">
 
-        {/* LEFT SIDE */}
+        {/* LEFT (60%) */}
         <div className="space-y-10">
 
+          {/* DETAILS */}
           <div className="bg-[#161a23] border border-[#1f242d] rounded-xl p-6 space-y-6">
             <h2 className="text-xl font-semibold">Template Details</h2>
 
@@ -192,7 +217,7 @@ Evaluate the response and provide a score from 0 to 1.`}
           </div>
         </div>
 
-        {/* RIGHT SIDE */}
+        {/* RIGHT (40%) */}
         <div className="space-y-6">
 
           <div className="bg-[#161a23] border border-[#1f242d] rounded-xl p-6">
@@ -230,6 +255,13 @@ Evaluate the response and provide a score from 0 to 1.`}
         </button>
       </div>
 
+      {/* TOASTS */}
+      {successMsg && (
+        <Toast message={successMsg} type="success" onClose={clearToast} />
+      )}
+      {errorMsg && (
+        <Toast message={errorMsg} type="error" onClose={clearToast} />
+      )}
     </div>
   );
 }
