@@ -14,10 +14,8 @@ export default function Traces() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 🔍 Filter ONLY by trace_name (case-insensitive)
   const filteredTraces = useMemo(() => {
     if (!search.trim()) return traces;
-
     const q = search.toLowerCase();
     return traces.filter((t) =>
       t.trace_name?.toLowerCase().includes(q)
@@ -30,7 +28,6 @@ export default function Traces() {
 
   return (
     <div className="space-y-4 text-white">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Traces</h1>
@@ -39,7 +36,6 @@ export default function Traces() {
           </p>
         </div>
 
-        {/* 🔍 Search */}
         <input
           type="text"
           value={search}
@@ -49,7 +45,6 @@ export default function Traces() {
         />
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-[#1f242d] bg-[#0d1117]">
         <table className="min-w-full text-xs">
           <thead className="bg-[#161b22] border-b border-[#1f242d]">
@@ -65,79 +60,66 @@ export default function Traces() {
           </thead>
 
           <tbody>
-            {filteredTraces.map((t) => (
-              <tr
-                key={t.trace_id}
-                className="border-b border-[#1f242d] hover:bg-[#161a23] transition"
-              >
-                {/* Timestamp */}
-                <td className="px-3 py-2 text-gray-400 whitespace-nowrap">
-                  {new Date(t.timestamp).toLocaleString()}
-                </td>
+            {filteredTraces.map((t) => {
+              const scores = t.scores || {};
 
-                {/* Trace Name */}
-                <td className="px-3 py-2">
-                  <span
-                    className="px-2 py-0.5 rounded-full bg-[#0f172a] border border-[#1f2937] text-xs font-medium text-gray-200 whitespace-nowrap"
-                    title={`Trace ID: ${t.trace_id}`}
-                  >
-                    {t.trace_name}
-                  </span>
-                </td>
-
-                {/* Input */}
-                <td
-                  className="px-3 py-2 text-gray-300 truncate max-w-[520px] leading-tight"
-                  title={t.input}
+              return (
+                <tr
+                  key={t.trace_id}
+                  className="border-b border-[#1f242d] hover:bg-[#161a23] transition"
                 >
-                  {t.input}
-                </td>
+                  <td className="px-3 py-2 text-gray-400 whitespace-nowrap">
+                    {new Date(t.timestamp).toLocaleString()}
+                  </td>
 
-                {/* Latency */}
-                <td className="px-3 py-2 text-gray-300 whitespace-nowrap">
-                  {t.latency_ms}ms
-                </td>
+                  <td className="px-3 py-2">
+                    <span className="px-2 py-0.5 rounded-full bg-[#0f172a] border border-[#1f2937] text-xs font-medium text-gray-200">
+                      {t.trace_name}
+                    </span>
+                  </td>
 
-                {/* Tokens */}
-                <td className="px-3 py-2 text-gray-300 whitespace-nowrap">
-                  {t.tokens}
-                </td>
+                  <td className="px-3 py-2 text-gray-300 truncate max-w-[520px]">
+                    {t.input}
+                  </td>
 
-                {/* Cost */}
-                <td className="px-3 py-2 text-gray-300 whitespace-nowrap">
-                  ${t.cost.toFixed(5)}
-                </td>
+                  <td className="px-3 py-2 text-gray-300">
+                    {t.latency_ms}ms
+                  </td>
 
-                {/* Scores */}
-                <td className="px-3 py-2">
-                  <div className="flex gap-1.5 flex-wrap max-w-[260px]">
-                    {Object.entries(t.scores || {}).map(([k, v]) => (
-                      <span
-                        key={k}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap
-                          ${
-                            v < 0.3
-                              ? "bg-[#3a1d16] text-[#ffb29b]"
-                              : v < 0.6
-                              ? "bg-[#2f1e0a] text-[#fcd34d]"
-                              : "bg-[#0d2a1f] text-[#6ee7b7]"
-                          }`}
-                      >
-                        {k}: {Number(v).toFixed(2)}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  <td className="px-3 py-2 text-gray-300">
+                    {t.tokens}
+                  </td>
 
-            {/* Empty state */}
+                  <td className="px-3 py-2 text-gray-300">
+                    ${(t.cost ?? 0).toFixed(5)}
+                  </td>
+
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1.5 flex-wrap max-w-[260px]">
+                      {Object.entries(scores).map(([k, v]) => (
+                        <span
+                          key={k}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
+                            ${
+                              v < 0.3
+                                ? "bg-[#3a1d16] text-[#ffb29b]"
+                                : v < 0.6
+                                ? "bg-[#2f1e0a] text-[#fcd34d]"
+                                : "bg-[#0d2a1f] text-[#6ee7b7]"
+                            }`}
+                        >
+                          {k}: {Number(v).toFixed(2)}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+
             {filteredTraces.length === 0 && (
               <tr>
-                <td
-                  colSpan={7}
-                  className="px-3 py-6 text-center text-gray-500 text-sm"
-                >
+                <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
                   No traces match “{search}”
                 </td>
               </tr>

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const API_BASE_URL ="https://smart-factory-backend-code-bfhma8cmf4ghesee.eastus2-01.azurewebsites.net";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -12,15 +12,25 @@ export const api = axios.create({
 export interface Trace {
   trace_id: string;
   session_id: string;
+  user_id?: string;
+
+  trace_name: string;     // ✅ matches backend
+  input: string;
+  output?: string;
+
   timestamp: string;
-  question: string;         // Backend returns this
-  input?: string;          // Optional alias
-  latency_ms: number;      // Backend returns this
-  latency?: number;        // Optional alias
+
+  latency_ms: number;
   tokens: number;
+  tokens_in?: number;
+  tokens_out?: number;
+
   cost: number;
-  scores?: Record<string, number>; // Backend returns this
-  [key: string]: any;      // Allow loose indexing for other fields like context, answer
+  model?: string;
+
+  scores?: Record<string, number>; // ✅ THIS is important
+
+  [key: string]: any;
 }
 
 export interface Session {
@@ -34,14 +44,47 @@ export interface Session {
 }
 
 export interface Evaluator {
-  id: string;
-  score_name: string;
-  template: { id: string;[key: string]: any };
-  target: string;
-  status: string;
-  execution?: { sampling_rate?: number;[key: string]: any };
-  created_at: string;
+  id: string;                     // conciseness-v1 (versioned id)
+
+  name?: string;                  // 🔥 NEW (human readable name)
+  score_name: string;             // metric key
+
+  description?: string;
+
+  template: {
+    id: string;
+    provider?: string;
+    model?: string;
+    prompt_version?: string;
+    [key: string]: any;
+  };
+
+  target: string;                 // "trace"
+  status: "active" | "inactive";
+
+  execution?: {
+    sampling_rate?: number;
+    timeout_ms?: number;
+    retry?: {
+      max_attempts?: number;
+      backoff_ms?: number;
+    };
+    [key: string]: any;
+  };
+
+  thresholds?: {
+    pass?: number;
+    warn?: number;
+  };
+
+  tags?: string[];
+
+  created_at?: string;
+  updated_at?: string;
+
+  [key: string]: any;
 }
+
 
 export interface Template {
   template_id: string;
@@ -55,10 +98,10 @@ export interface Template {
 }
 
 export interface EvaluationLog {
-  timestamp: string;
-  evaluator_name: string;
-  trace_id: string;
-  score: number;
-  duration_ms: number;
-  status: string;
+  timestamp?: string;
+  evaluator_name?: string;
+  trace_id?: string;
+  score?: number | null;
+  duration_ms?: number;
+  status?: string;
 }

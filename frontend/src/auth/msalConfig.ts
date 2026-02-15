@@ -9,9 +9,6 @@ const getRedirectUri = () => {
   if (hostname === "gentle-mud-0f818720f.1.azurestaticapps.net") {
     return "https://gentle-mud-0f818720f.1.azurestaticapps.net/login";
   }
-
-  // Local dev
-  return "http://localhost:5173/login";
 };
 
 export const msalConfig = {

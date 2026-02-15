@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { api, type Session } from "../api/client";
+import { api } from "../api/client";
+
+interface Session {
+  session_id: string;
+  user_id: string;
+  trace_count: number;
+  total_tokens: number;
+  total_cost: number;
+  created: string;
+}
 
 export default function Sessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -14,17 +23,17 @@ export default function Sessions() {
       .finally(() => setLoading(false));
   }, []);
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr?: string) => {
     if (!dateStr) return "-";
     const date = new Date(dateStr);
-    return date.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
+    return date.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
     });
   };
 
@@ -38,6 +47,7 @@ export default function Sessions() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold text-white tracking-tight">
           Sessions
@@ -47,6 +57,7 @@ export default function Sessions() {
         </p>
       </div>
 
+      {/* Table Container */}
       <div className="bg-[#11141d] rounded-xl border border-[#1e2330] overflow-hidden shadow-2xl">
         <div className="px-6 py-5 border-b border-[#1e2330]">
           <h2 className="text-xl font-bold text-white">All Sessions</h2>
@@ -67,36 +78,44 @@ export default function Sessions() {
 
             <tbody className="divide-y divide-[#1e2330]">
               {sessions.map((s) => (
-                <tr key={s.session_id} className="hover:bg-[#1a1c23] transition-colors group">
+                <tr
+                  key={s.session_id}
+                  className="hover:bg-[#1a1c23] transition-colors group"
+                >
+                  {/* Session ID */}
                   <td className="px-6 py-4">
                     <span className="bg-[#1a1c23] group-hover:bg-[#252833] text-white text-xs font-bold px-3 py-1.5 rounded-full border border-[#1e2330] transition-colors">
                       {s.session_id}
                     </span>
                   </td>
 
+                  {/* User */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] font-medium">
-                    {s.user || s.user_id || "Unknown"}
+                    {s.user_id || "Unknown"}
                   </td>
 
+                  {/* Trace Count */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
                     {s.trace_count}
                   </td>
 
+                  {/* Total Tokens */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
-                    {s.total_tokens?.toLocaleString()}
+                    {s.total_tokens?.toLocaleString() ?? 0}
                   </td>
 
+                  {/* Total Cost */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
-                    ${s.total_cost?.toFixed(6)}
+                    ${(s.total_cost ?? 0).toFixed(6)}
                   </td>
 
+                  {/* Created Timestamp */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] font-medium">
-                    {formatDate(s.created_at)}
+                    {formatDate(s.created)}
                   </td>
                 </tr>
               ))}
             </tbody>
-
           </table>
         </div>
       </div>

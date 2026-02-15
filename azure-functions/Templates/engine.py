@@ -1,19 +1,20 @@
 import logging
+import re
 from jinja2 import Template
 
-from shared.cosmos import DB_READ   # <-- shared Cosmos clients
-from shared.llm import call_llm     # <-- Azure OpenAI wrapper
+from shared.cosmos import DB_READ
+from shared.llm import call_llm
 
 
 # ----------------------------------------------------
-# Get Cosmos Containers (READ)
+# Cosmos Containers
 # ----------------------------------------------------
 EVALUATORS_CONTAINER = DB_READ.get_container_client("evaluators")
 TEMPLATES_CONTAINER = DB_READ.get_container_client("templates")
 
 
 # ----------------------------------------------------
-# Fetch Evaluator Document
+# Fetch Evaluator
 # ----------------------------------------------------
 def fetch_evaluator(evaluator_id: str):
     try:
@@ -27,7 +28,7 @@ def fetch_evaluator(evaluator_id: str):
 
 
 # ----------------------------------------------------
-# Fetch Template Document
+# Fetch Template
 # ----------------------------------------------------
 def fetch_template(template_id: str):
     try:
@@ -41,7 +42,7 @@ def fetch_template(template_id: str):
 
 
 # ----------------------------------------------------
-# Render rubric prompt using Jinja
+# Render Prompt
 # ----------------------------------------------------
 def render_prompt(template_str: str, variables: dict) -> str:
     try:
@@ -52,54 +53,66 @@ def render_prompt(template_str: str, variables: dict) -> str:
 
 
 # ----------------------------------------------------
-# Convert LLM output → numeric score safely
+# Extract Numeric Score
 # ----------------------------------------------------
 def parse_numeric_score(raw: str) -> float:
     try:
-        return float(raw.strip())
+        match = re.search(r"\d+(\.\d+)?", raw)
+        if match:
+            return float(match.group())
+        return None
     except Exception:
-        return 0.0
+        return None
 
 
 # ----------------------------------------------------
-# Main Dynamic Evaluator Execution
+# Main Evaluator Execution
 # ----------------------------------------------------
 def run_evaluator(evaluator_id: str, variables: dict) -> dict:
     """
-    evaluator_id = "conciseness-v1" (from Evaluator JSON)
-    variables = { input, context, response }
+    Fully dynamic evaluator runner.
     """
 
-    # 1. Load Evaluator Record
+    # 1️⃣ Load evaluator
     evaluator_doc = fetch_evaluator(evaluator_id)
     template_id = evaluator_doc["template"]["id"]
 
-    # 2. Load Template Record
+    model_override = evaluator_doc.get("template", {}).get("model")
+
+    # 2️⃣ Load template
     template_doc = fetch_template(template_id)
 
-    # Template schema:
-    #  {
-    #    "id": "...",
-    #    "model": "gpt-4o-mini",
-    #    "template": "<rubric prompt>",
-    #    "inputs": [ "response" ]
-    #  }
-
-    model = template_doc["model"]
+    model = model_override or template_doc["model"]
     prompt_template = template_doc["template"]
+    required_inputs = template_doc.get("inputs", [])
 
-    # 3. Render prompt with variables
-    final_prompt = render_prompt(prompt_template, variables)
+    # 3️⃣ Build template variables
+    template_variables = {}
 
-    # 4. Call Azure OpenAI
+    for key in required_inputs:
+        if key in variables and variables.get(key) is not None:
+            template_variables[key] = variables[key]
+        elif "_raw" in variables and key in variables["_raw"]:
+            template_variables[key] = variables["_raw"][key]
+        else:
+            raise ValueError(f"Missing required template inputs: [{key}]")
+
+    # 4️⃣ Render prompt
+    final_prompt = render_prompt(prompt_template, template_variables)
+
+    # 5️⃣ Call LLM
     raw_output = call_llm(model=model, prompt=final_prompt)
 
-    # 5. Convert raw → score (float)
+    # 6️⃣ Parse score
     score = parse_numeric_score(raw_output)
+
+    classification = "completed" if score is not None else "failed"
 
     return {
         "evaluator_id": evaluator_id,
         "template_id": template_id,
+        "model_used": model,
         "score": score,
+        "classification": classification,
         "raw_output": raw_output
     }

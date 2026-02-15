@@ -79,7 +79,7 @@ export default function CreateTemplate() {
     };
 
     try {
-      const res = await fetch("http://localhost:8000/templates", {
+      const res = await fetch("https://smart-factory-backend-code-bfhma8cmf4ghesee.eastus2-01.azurewebsites.net/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

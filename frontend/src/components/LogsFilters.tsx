@@ -24,17 +24,25 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
   showStatusDropdown,
   setShowStatusDropdown
 }) => {
-  const evaluatorOptions = [
+
+  // ✅ FIX: remove undefined safely
+  const evaluatorOptions: string[] = [
     "All Evaluators",
-    ...Array.from(new Set(logs.map((l) => l.evaluator_name)))
+    ...Array.from(
+      new Set(
+        logs
+          .map((l) => l.evaluator_name)
+          .filter((v): v is string => typeof v === "string")
+      )
+    )
   ];
 
-  const statusOptions = ["All Status", "Completed", "Error", "Timeout"];
+  const statusOptions: string[] = ["All Status", "Completed", "Error", "Timeout"];
 
   return (
     <div className="flex gap-3">
 
-      {/* -------------------- Evaluator Dropdown -------------------- */}
+      {/* Evaluator Dropdown */}
       <div className="relative">
         <button
           onClick={() => {
@@ -56,7 +64,7 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
                 <button
                   key={opt}
                   onClick={() => {
-                    setFilterEvaluator(opt);
+                    setFilterEvaluator(opt); // ✅ now always string
                     setShowEvaluatorDropdown(false);
                   }}
                   className={`w-full flex items-center gap-2 text-left px-4 py-2 text-sm rounded-lg
@@ -75,7 +83,7 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
         )}
       </div>
 
-      {/* -------------------- Status Dropdown -------------------- */}
+      {/* Status Dropdown */}
       <div className="relative">
         <button
           onClick={() => {

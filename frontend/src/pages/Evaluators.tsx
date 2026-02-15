@@ -19,12 +19,12 @@ const EvaluatorsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // ✅ FIXED: proper naming
   const [evaluators, setEvaluators] = useState<Evaluator[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [logs, setLogs] = useState<EvaluationLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Initialize tab from navigation state
   const [activeTab, setActiveTab] =
     useState<"evaluators" | "templates" | "logs">(
       (location.state as any)?.tab ?? "evaluators"
@@ -38,7 +38,6 @@ const EvaluatorsPage: React.FC = () => {
   const [showEvaluatorDropdown, setShowEvaluatorDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
-  // ✅ Sync tab if navigation state changes
   useEffect(() => {
     const tab = (location.state as any)?.tab;
     if (tab) setActiveTab(tab);
@@ -66,9 +65,7 @@ const EvaluatorsPage: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
 
-    // --------------------------------------------------
-    // ✅ FIXED: Evaluators API shape
-    // --------------------------------------------------
+    // ---- Evaluators
     try {
       const res = await api.get("/evaluators");
       const data = res.data;
@@ -84,18 +81,23 @@ const EvaluatorsPage: React.FC = () => {
       setEvaluators([]);
     }
 
-    // Templates
+    // ---- Templates
     try {
       const res = await api.get("/templates");
-      const t = res.data;
-      if (t?.templates) setTemplates(t.templates);
-      else if (Array.isArray(t)) setTemplates(t);
-      else setTemplates([]);
+      const data = res.data;
+
+      if (Array.isArray(data)) {
+        setTemplates(data);
+      } else if (Array.isArray(data?.templates)) {
+        setTemplates(data.templates);
+      } else {
+        setTemplates([]);
+      }
     } catch {
       setTemplates([]);
     }
 
-    // Evaluation logs
+    // ---- Evaluation Logs
     try {
       const res = await api.get("/evaluations");
       setLogs(Array.isArray(res.data) ? res.data : []);
@@ -119,7 +121,6 @@ const EvaluatorsPage: React.FC = () => {
     }
   };
 
-  /** Loading screen */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-[#13bba4]">
@@ -138,7 +139,6 @@ const EvaluatorsPage: React.FC = () => {
           <p className="text-gray-400 text-sm">Automated evaluation system</p>
         </div>
 
-        {/* NEW EVALUATOR */}
         <button
           onClick={() => navigate("/evaluators/new")}
           className="flex items-center gap-2 px-5 py-2.5 bg-[#13bba4] text-black font-black rounded-lg"
@@ -164,6 +164,7 @@ const EvaluatorsPage: React.FC = () => {
       </div>
 
       {/* TAB CONTENT */}
+
       {activeTab === "evaluators" && (
         <EvaluatorsTable evaluators={evaluators} />
       )}
@@ -191,7 +192,6 @@ const EvaluatorsPage: React.FC = () => {
         />
       )}
 
-      {/* TRACE MODAL */}
       {(selectedTrace || loadingTrace) && (
         <TraceModal
           selectedTrace={selectedTrace}

@@ -1,7 +1,6 @@
 import React from "react";
 import LogsFilters from "./LogsFilters";
 import { ExternalLink } from "lucide-react";
-
 import { type EvaluationLog } from "../api/client";
 
 interface LogsTableProps {
@@ -49,7 +48,6 @@ const LogsTable: React.FC<LogsTableProps> = ({
         />
       </div>
 
-      {/* 🔥 Scroll Wrapper for Responsive Table */}
       <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
         <table className="w-full text-left min-w-[900px]">
           <thead className="bg-[#161a23]">
@@ -75,58 +73,71 @@ const LogsTable: React.FC<LogsTableProps> = ({
 
           <tbody>
             {filteredLogs.map((log, i) => {
-              const statusStr = (log.status || "unknown").toLowerCase();
+              const statusStr = (log.status ?? "unknown").toLowerCase();
 
               return (
                 <tr
-                  key={i}
+                  key={log.trace_id ?? i}
                   className="border-b border-gray-800/40 hover:bg-[#1c212e]/40"
                 >
+                  {/* Timestamp */}
                   <td className="px-8 py-6 text-xs text-gray-400">
                     {log.timestamp
                       ? new Date(log.timestamp).toLocaleString()
                       : "N/A"}
                   </td>
 
+                  {/* Evaluator */}
                   <td className="px-8 py-6 text-sm font-bold text-gray-200">
-                    {log.evaluator_name}
+                    {log.evaluator_name ?? "-"}
                   </td>
 
+                  {/* Trace ID */}
                   <td className="px-8 py-6">
                     <span className="px-3 py-1 bg-black border border-gray-800 text-gray-300 text-xs font-mono rounded-lg whitespace-nowrap">
-                      {log.trace_id || "N/A"}
+                      {log.trace_id ?? "N/A"}
                     </span>
                   </td>
 
+                  {/* Score */}
                   <td className="px-8 py-6 text-sm text-gray-300 font-bold">
                     {typeof log.score === "number"
                       ? log.score.toFixed(2)
                       : "-"}
                   </td>
 
+                  {/* Duration */}
                   <td className="px-8 py-6 text-xs text-gray-400 font-bold">
                     {typeof log.duration_ms === "number"
                       ? `${log.duration_ms}ms`
                       : "—"}
                   </td>
 
+                  {/* Status */}
                   <td className="px-8 py-6">
                     <span
-                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusStr === "completed"
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
+                        statusStr === "completed"
                           ? "bg-green-500/10 text-green-500 border-green-500/20"
                           : statusStr === "timeout"
-                            ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                            : "bg-red-500/10 text-red-500 border-red-500/20"
-                        }`}
+                          ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                          : "bg-red-500/10 text-red-500 border-red-500/20"
+                      }`}
                     >
-                      {log.status || "Unknown"}
+                      {log.status ?? "Unknown"}
                     </span>
                   </td>
 
+                  {/* Actions */}
                   <td className="px-8 py-6">
                     <button
-                      onClick={() => handleViewTrace(log.trace_id)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-[#13bba4] text-black font-black rounded-lg"
+                      onClick={() => {
+                        if (log.trace_id) {
+                          handleViewTrace(log.trace_id);
+                        }
+                      }}
+                      disabled={!log.trace_id}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-[#13bba4] text-black font-black rounded-lg disabled:opacity-50"
                     >
                       <ExternalLink size={14} />
                       View Trace

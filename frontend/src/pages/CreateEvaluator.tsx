@@ -3,9 +3,6 @@ import { ChevronDown, ChevronLeft } from "lucide-react";
 import { api } from "../api/client";
 import { useNavigate } from "react-router-dom";
 
-// ========================================
-// TOAST COMPONENT
-// ========================================
 const Toast = ({
   message,
   type,
@@ -22,13 +19,11 @@ const Toast = ({
 
   return (
     <div
-      className={`fixed bottom-6 right-6 min-w-[260px] max-w-[360px] px-5 py-3 rounded-xl 
-        border shadow-xl backdrop-blur-md animate-fadeIn 
-        ${
-          type === "success"
-            ? "bg-[#0e1713] border-[#13bba4] text-[#13bba4]"
-            : "bg-[#1b0e0e] border-red-500 text-red-400"
-        }`}
+      className={`fixed bottom-6 right-6 min-w-[260px] max-w-[360px] px-5 py-3 rounded-xl border shadow-xl ${
+        type === "success"
+          ? "bg-[#0e1713] border-[#13bba4] text-[#13bba4]"
+          : "bg-[#1b0e0e] border-red-500 text-red-400"
+      }`}
     >
       <p className="text-sm font-semibold">{message}</p>
     </div>
@@ -41,27 +36,20 @@ const CreateEvaluator: React.FC = () => {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // BASIC INFO
   const [name, setName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
 
-  // 🔥 active / inactive toggle
   const [status, setStatus] = useState<"active" | "inactive">("active");
-
-  // TARGET TYPE
   const [targetType, setTargetType] = useState<"traces" | "dataset">("traces");
 
-  // VARIABLE MAPPING
   const [variableMapping, setVariableMapping] = useState<
     { variable: string; source: string }[]
   >([]);
 
-  // EXECUTION SETTINGS
   const [samplingRate, setSamplingRate] = useState(100);
   const [delaySeconds, setDelaySeconds] = useState(0);
 
-  // TOAST
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -71,9 +59,7 @@ const CreateEvaluator: React.FC = () => {
     setToast({ type, message });
   };
 
-  // ========================================
-  // LOAD TEMPLATES
-  // ========================================
+  // Load templates
   useEffect(() => {
     (async () => {
       try {
@@ -86,7 +72,7 @@ const CreateEvaluator: React.FC = () => {
     })();
   }, []);
 
-  // When template selected → generate mapping inputs
+  // Generate variable mapping
   useEffect(() => {
     if (!selectedTemplate) return;
 
@@ -99,9 +85,7 @@ const CreateEvaluator: React.FC = () => {
     );
   }, [selectedTemplate]);
 
-  // ========================================
   // CREATE EVALUATOR
-  // ========================================
   const handleCreate = async () => {
     if (!selectedTemplate)
       return showToast("error", "Please select a template.");
@@ -113,20 +97,20 @@ const CreateEvaluator: React.FC = () => {
       return showToast("error", "Please complete all variable mappings.");
 
     const payload = {
-      score_name: name.trim(),
-      template: {
-        id: selectedTemplate.template_id,
-        model: selectedTemplate.model,
-        prompt_version: "v1",
-      },
+      name: name.trim(),
 
-      // 🔥 FIXED TO MATCH BACKEND
-      status: status, // "active" / "inactive"
+      // backend accepts string OR object
+      template: selectedTemplate.template_id,
 
-      target: targetType,
+      status: status,
+
+      // normalize target
+      target: targetType === "traces" ? "trace" : "dataset",
+
       variable_mapping: Object.fromEntries(
         variableMapping.map((m) => [m.variable, m.source]),
       ),
+
       execution: {
         sampling_rate: samplingRate / 100,
         delay_ms: delaySeconds * 1000,
@@ -136,34 +120,30 @@ const CreateEvaluator: React.FC = () => {
     try {
       await api.post("/evaluators", payload);
       showToast("success", "Evaluator created successfully!");
-
       setTimeout(() => navigate("/evaluators"), 1200);
-    } catch {
-      showToast("error", "Failed to create evaluator.");
+    } catch (err: any) {
+      console.error("Create evaluator error:", err?.response?.data);
+      showToast(
+        "error",
+        err?.response?.data?.detail || "Failed to create evaluator.",
+      );
     }
   };
 
   if (loading) {
-    return <div className="text-white p-10">Loading Evaluator Create...</div>;
+    return <div className="text-white p-10">Loading...</div>;
   }
 
   return (
     <div className="flex justify-center bg-[#0e1117] text-white min-h-screen p-10 relative">
       <div className="w-full max-w-[60vw] space-y-10">
-        {/* BACK + TITLE */}
+        {/* HEADER */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate("/evaluators")}
-            className="
-              flex items-center justify-center
-              w-10 h-10 rounded-lg 
-              bg-[#161a23] border border-[#1f242d]
-              text-gray-300 hover:text-black
-              hover:bg-[#13bba4] hover:border-transparent
-              transition-all duration-200
-            "
+            className="w-10 h-10 rounded-lg bg-[#161a23] border border-[#1f242d] text-gray-300 hover:bg-[#13bba4] hover:text-black"
           >
-            <ChevronLeft size={21} strokeWidth={2.8} />
+            <ChevronLeft size={20} />
           </button>
 
           <div>
@@ -177,23 +157,22 @@ const CreateEvaluator: React.FC = () => {
           <h2 className="text-xl font-bold mb-6">Basic Information</h2>
 
           <div className="grid grid-cols-2 gap-6">
-            {/* Name */}
-            <div className="flex flex-col">
-              <label className="text-sm text-gray-400 mb-2">
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block">
                 Evaluator Name
               </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Hallucination Score"
-                className="bg-[#0e1117] border border-gray-800 rounded-lg px-4 py-2 text-sm"
+                placeholder="e.g., Toxicity Score"
+                className="bg-[#0e1117] border border-gray-800 rounded-lg px-4 py-2 text-sm w-full"
               />
             </div>
 
-            {/* Template Dropdown */}
-            <div className="flex flex-col">
-              <label className="text-sm text-gray-400 mb-2">Template</label>
-
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block">
+                Template
+              </label>
               <div className="relative">
                 <button
                   onClick={() => setShowTemplateMenu((p) => !p)}
@@ -206,12 +185,12 @@ const CreateEvaluator: React.FC = () => {
                 {showTemplateMenu && (
                   <div
                     className="
-      absolute mt-1 w-full 
-      bg-[#0e1117] 
-      border border-gray-800 
-      rounded-xl shadow-lg z-50 
-      overflow-hidden
-    "
+        absolute mt-1 w-full 
+        bg-[#0e1117] 
+        border border-gray-800 
+        rounded-xl shadow-lg z-50 
+        overflow-hidden
+      "
                   >
                     {templates.map((t) => (
                       <button
@@ -221,12 +200,12 @@ const CreateEvaluator: React.FC = () => {
                           setShowTemplateMenu(false);
                         }}
                         className="
-          block w-full text-left px-4 py-2 text-sm 
-          text-white 
-          bg-[#0e1117]
-          hover:bg-[#13bba4] hover:text-black 
-          transition
-        "
+            block w-full text-left px-4 py-2 text-sm 
+            text-white 
+            bg-[#0e1117]
+            hover:bg-[#13bba4] hover:text-black 
+            transition
+          "
                       >
                         {t.name}
                       </button>
@@ -237,7 +216,7 @@ const CreateEvaluator: React.FC = () => {
             </div>
           </div>
 
-          {/* STATUS SWITCH */}
+          {/* STATUS TOGGLE */}
           <div className="flex items-center gap-3 mt-6">
             <span className="text-gray-400 text-sm">Status</span>
 
@@ -260,7 +239,7 @@ const CreateEvaluator: React.FC = () => {
           </div>
         </section>
 
-        {/* TARGET SECTION */}
+        {/* TARGET */}
         <section className="bg-[#161a23] border border-gray-800 rounded-2xl p-6">
           <h2 className="text-xl font-bold mb-6">Target Configuration</h2>
           <div className="flex gap-3">
@@ -295,7 +274,9 @@ const CreateEvaluator: React.FC = () => {
           {variableMapping.map((m, idx) => (
             <div key={idx} className="grid grid-cols-2 gap-6 mb-4">
               <div className="flex items-center">
-                <span className="text-[#13bba4] font-mono text-sm">{`{{${m.variable}}}`}</span>
+                <span className="text-[#13bba4] font-mono text-sm">
+                  {`{{${m.variable}}}`}
+                </span>
               </div>
 
               <select
@@ -357,25 +338,23 @@ const CreateEvaluator: React.FC = () => {
           </div>
         </section>
 
-        {/* BUTTONS */}
         <div className="flex justify-end gap-4 pb-10">
           <button
             onClick={() => navigate("/evaluators")}
-            className="px-6 py-2 bg-[#13161d] text-gray-300 border border-gray-700 rounded-lg hover:bg-[#191e28]"
+            className="px-6 py-2 bg-[#13161d] text-gray-300 border border-gray-700 rounded-lg"
           >
             Cancel
           </button>
 
           <button
             onClick={handleCreate}
-            className="px-6 py-2 bg-[#13bba4] text-black rounded-lg font-black hover:bg-[#0fae98]"
+            className="px-6 py-2 bg-[#13bba4] text-black rounded-lg font-bold"
           >
             Create Evaluator
           </button>
         </div>
       </div>
 
-      {/* TOAST */}
       {toast && (
         <Toast
           message={toast.message}

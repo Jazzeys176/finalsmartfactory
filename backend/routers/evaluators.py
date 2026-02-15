@@ -2,7 +2,6 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from azure.cosmos.exceptions import CosmosResourceExistsError
 
-# ✅ Correct shared imports (Key Vault handled internally)
 from shared.cosmos import evaluators_container
 from shared.audit import audit_log
 
@@ -33,39 +32,63 @@ def get_evaluators():
 @router.post("")
 def create_evaluator(payload: dict):
     try:
-        name = payload.get("score_name")
+        name = payload.get("name")
         template = payload.get("template")
         target = payload.get("target", "trace")
-
-        # 🔥 status defaults to active
         status = payload.get("status", "active")
+        execution = payload.get("execution", {})
+
+        # 🔥 ADD THIS (new)
+        variable_mapping = payload.get("variable_mapping", {})
+
+        # ---------------------------
+        # Basic validation
+        # ---------------------------
+        if not name:
+            raise HTTPException(400, "name is required")
 
         if status not in {"active", "inactive"}:
             raise HTTPException(400, "status must be 'active' or 'inactive'")
 
-        execution = payload.get("execution", {})
+        # ---------------------------
+        # Auto-generate score_name
+        # ---------------------------
+        score_name = payload.get("score_name") or name.lower().replace(" ", "_")
 
-        if not name:
-            raise HTTPException(400, "score_name is required")
+        # ---------------------------
+        # Normalize template format
+        # ---------------------------
+        if isinstance(template, str):
+            template = {"id": template}
+
         if not template or not template.get("id"):
             raise HTTPException(400, "template.id is required")
 
-        evaluator_id = payload.get("id") or name.lower().replace(" ", "_")
+        # ---------------------------
+        # Versioned ID
+        # ---------------------------
+        evaluator_id = payload.get("id") or f"{score_name}-v1"
 
+        # ---------------------------
+        # CREATE DOCUMENT
+        # ---------------------------
         doc = {
             "id": evaluator_id,
-            "score_name": name,
+            "name": name,
+            "score_name": score_name,
             "template": template,
             "target": target,
             "status": status,
+
+            # 🔥 SAVE VARIABLE MAPPING (FIX)
+            "variable_mapping": variable_mapping,
+
             "execution": execution,
             "created_at": datetime.utcnow().isoformat(),
         }
 
-        # Save evaluator (WRITE container)
         evaluators_container.create_item(doc)
 
-        # Audit (shared, safe, non-blocking)
         audit_log(
             action="Evaluator Created",
             type="evaluator",
@@ -78,7 +101,7 @@ def create_evaluator(payload: dict):
     except CosmosResourceExistsError:
         raise HTTPException(
             status_code=409,
-            detail="Evaluator with this name already exists",
+            detail="Evaluator with this id already exists",
         )
 
     except HTTPException:

@@ -383,8 +383,8 @@ def get_next_trace_number(counter_container):
 def make_trace(trace_no, session_id, user_id, trace_name,
                input_text, context_text, output_text):
 
-    tokens_in = random.randint(200, 3500)
-    tokens_out = random.randint(50, 1500)
+    tokens_in = random.randint(20, 350)
+    tokens_out = random.randint(20, 150)
 
     trace_id = f"trace-{str(trace_no).zfill(4)}"
 
@@ -403,7 +403,7 @@ def make_trace(trace_no, session_id, user_id, trace_name,
         "context": context_text,
         "output": output_text,
 
-        "latency_ms": random.randint(200, 8000),
+        "latency_ms": random.randint(20, 300),
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
         "tokens": tokens_in + tokens_out,

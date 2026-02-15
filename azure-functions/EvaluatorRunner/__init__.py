@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from azure.functions import DocumentList
 from azure.cosmos import exceptions
 
-from Templates.registry import EVALUATORS
 from shared.audit import audit_log
 from shared.cosmos import evaluators_read, evaluations_write
+from Templates.engine import run_evaluator   # 🔥 direct dynamic call
 
 
 # --------------------------------------------------
@@ -19,6 +19,7 @@ def normalize_trace(trace: dict) -> dict:
         "input": trace.get("input") or trace.get("question", ""),
         "context": trace.get("context", ""),
         "response": trace.get("output") or trace.get("answer", ""),
+        "output": trace.get("output") or trace.get("answer", ""),
         "_raw": trace
     }
 
@@ -27,7 +28,7 @@ def normalize_trace(trace: dict) -> dict:
 # Azure Function Entry
 # --------------------------------------------------
 def main(documents: DocumentList):
-    logging.error("🔥 EvaluatorRunner TRIGGERED 🔥")
+    logging.info("🔥 EvaluatorRunner TRIGGERED 🔥")
 
     if not documents:
         logging.warning("[EvaluatorRunner] No documents received")
@@ -58,24 +59,15 @@ def main(documents: DocumentList):
     # Process each evaluator
     # --------------------------------------------------
     for ev in evaluators:
-        evaluator_name = ev.get("score_name")          # e.g. "conciseness"
-        evaluator_id = ev.get("id")                    # e.g. "conciseness-v1"
-        template_id = ev.get("template", {}).get("id") # e.g. "conciseness_llm"
+        evaluator_id = ev.get("id")
+        evaluator_name = ev.get("score_name")
+        template_id = ev.get("template", {}).get("id")
 
-        if not evaluator_name or not evaluator_id or not template_id:
+        if not evaluator_id or not template_id:
             logging.warning(f"[EvaluatorRunner] Invalid evaluator config: {ev}")
             continue
 
-        registry_key = f"{evaluator_name}_llm"
-        evaluator_fn = EVALUATORS.get(registry_key)
-
-        if not evaluator_fn:
-            logging.warning(f"[EvaluatorRunner] No evaluator registered for '{registry_key}'")
-            continue
-
-        logging.info(
-            f"[EvaluatorRunner] Running evaluator '{evaluator_id}' using template '{registry_key}'"
-        )
+        logging.info(f"[EvaluatorRunner] Running evaluator '{evaluator_id}'")
 
         executed_count = 0
         exec_cfg = ev.get("execution", {})
@@ -101,7 +93,7 @@ def main(documents: DocumentList):
             eval_id = f"{trace_id}:{evaluator_id}"
 
             # --------------------------------------------------
-            # Idempotency
+            # Idempotency Check
             # --------------------------------------------------
             try:
                 evaluations_write.read_item(eval_id, partition_key=trace_id)
@@ -113,34 +105,38 @@ def main(documents: DocumentList):
                 continue
 
             # --------------------------------------------------
-            # Run evaluator
+            # Run evaluator dynamically
             # --------------------------------------------------
             start_time = time.time()
 
             try:
                 normalized = normalize_trace(trace)
-                result = evaluator_fn(evaluator_id, normalized)
+
+                result = run_evaluator(evaluator_id, normalized)
 
                 score = result.get("score")
                 raw_output = result.get("raw_output")
+                classification = result.get("classification")
 
-                # ✔ Round score to 2 decimals (no trailing zeros)
                 if isinstance(score, (int, float)):
                     score = round(float(score), 2)
 
-                status = "completed"
+                # 🔥 Status now reflects engine result
+                status = "completed" if classification != "failed" else "failed"
+
             except Exception as e:
                 logging.exception(
                     f"[EvaluatorRunner] Evaluator '{evaluator_id}' failed for trace {trace_id}"
                 )
                 score = None
                 raw_output = str(e)
+                classification = "failed"
                 status = "failed"
 
             duration_ms = int((time.time() - start_time) * 1000)
 
             # --------------------------------------------------
-            # Save record to Cosmos
+            # Save evaluation record
             # --------------------------------------------------
             doc = {
                 "id": eval_id,
@@ -149,6 +145,7 @@ def main(documents: DocumentList):
                 "evaluator_id": evaluator_id,
                 "template_id": template_id,
                 "score": score,
+                "classification": classification,
                 "raw_output": raw_output,
                 "status": status,
                 "duration_ms": duration_ms,

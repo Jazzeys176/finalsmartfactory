@@ -16,6 +16,6 @@ build/
 .vite/
 
 # Editor
-.vscode/
+
 backend/.env
 .env

@@ -2,10 +2,13 @@ import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
-# ✅ Correct shared import (Key Vault handled inside shared.cosmos)
-from shared.cosmos import evaluations_read, evaluations_write
+# ✅ Correct shared import
+from shared.cosmos import evaluations_read, evaluators_read
 
 router = APIRouter()
+
+# Cache for evaluator names to avoid repeated queries
+_evaluator_cache = {}
 
 
 # -----------------------------
@@ -68,12 +71,44 @@ def normalize_status(e: dict, score):
     return "Completed" if score is not None else "Error"
 
 
+def get_evaluator_name(evaluator_id: str) -> str:
+    """
+    Fetch the human-readable name for an evaluator by its ID.
+    Uses caching to minimize database queries.
+    """
+    if not evaluator_id:
+        return "Unknown"
+    
+    # Check cache first
+    if evaluator_id in _evaluator_cache:
+        return _evaluator_cache[evaluator_id]
+    
+    try:
+        # Query the evaluators container
+        evaluator = evaluators_read.read_item(
+            item=evaluator_id,
+            partition_key=evaluator_id
+        )
+        name = evaluator.get("name") or evaluator.get("score_name") or evaluator_id
+        _evaluator_cache[evaluator_id] = name
+        return name
+    except Exception:
+        # Fallback to evaluator_id if lookup fails
+        return evaluator_id
+
+
 def normalize_eval(e: dict) -> dict:
     score = e.get("score")
+    
+    # Get evaluator_id from the evaluation record
+    evaluator_id = e.get("evaluator_id")
+    
+    # Fetch the human-readable name
+    evaluator_name = get_evaluator_name(evaluator_id)
 
     return {
-        "evaluator_name": e.get("evaluator_name"),
         "trace_id": e.get("trace_id"),
+        "evaluator_name": evaluator_name,  # Now using the actual name from evaluators table
         "score": score,
         "timestamp": parse_timestamp(
             e.get("timestamp") or e.get("created_at") or e.get("_ts")
@@ -81,7 +116,6 @@ def normalize_eval(e: dict) -> dict:
         "duration_ms": compute_duration(e),
         "status": normalize_status(e, score),
     }
-
 
 # -----------------------------
 # Routes
@@ -98,7 +132,7 @@ def get_all_evaluations(
         filters = []
 
         if evaluator:
-            filters.append("c.evaluator_name = @evaluator")
+            filters.append("c.name = @evaluator")
             parameters.append({"name": "@evaluator", "value": evaluator})
 
         if trace_id:
@@ -108,11 +142,10 @@ def get_all_evaluations(
         if filters:
             query += " WHERE " + " AND ".join(filters)
 
-        # ✅ SAFE ORDER BY (always exists)
         query += " ORDER BY c._ts DESC"
 
         raw = list(
-            evaluations_container.query_items(
+            evaluations_read.query_items(
                 query=query,
                 parameters=parameters,
                 enable_cross_partition_query=True,
