@@ -99,11 +99,23 @@ class CanonicalTrace(BaseModel):
 # ============================================================
 
 MODEL_PRICING = {
-    "llama-3.1-8b-instant": {"input_per_1k": 0.00005, "output_per_1k": 0.00008},
-    "llama-3.3-70b-versatile": {"input_per_1k": 0.00059, "output_per_1k": 0.00079},
-    "openai/gpt-oss-120b": {"input_per_1k": 0.00015, "output_per_1k": 0.00060},
+    "llama-3.1-8b-instant": {
+        "input_per_1k": 0.00005,
+        "output_per_1k": 0.00008,
+    },
+    "llama-3.3-70b-versatile": {
+        "input_per_1k": 0.00059,
+        "output_per_1k": 0.00079,
+    },
+    "openai/gpt-oss-120b": {
+        "input_per_1k": 0.00015,
+        "output_per_1k": 0.00060,
+    },
+    "models/gemini-2.5-flash-lite": {
+        "input_per_1k": 0.0001,
+        "output_per_1k": 0.0004,
+    }
 }
-
 
 # ============================================================
 # PROVIDER DETECTION
