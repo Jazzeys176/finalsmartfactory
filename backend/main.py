@@ -17,7 +17,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://gentle-mud-0f818720f.1.azurestaticapps.net"
+        "https://gentle-mud-0f818720f.1.azurestaticapps.net",
+        "http://localhost:5173"
     ],
     allow_credentials=True,
     allow_methods=["*"],

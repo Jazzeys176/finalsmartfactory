@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-
 import { api, type Trace } from "../api/client";
 
 export default function Traces() {
+  const navigate = useNavigate();
   const [traces, setTraces] = useState<Trace[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const navigate = useNavigate();
+
 
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export default function Traces() {
                           <span
                             key={k}
                             className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
-        ${v < 0.3
+                             ${v < 0.3
                                 ? "bg-[#3a1d16] text-[#ffb29b]"
                                 : v < 0.6
                                   ? "bg-[#2f1e0a] text-[#fcd34d]"

@@ -10,6 +10,7 @@ import RequireAuth from "./auth/RequireAuth";
 // Pages
 import Dashboard from "./pages/Dashboard";
 import Traces from "./pages/Traces";
+import TraceDetails from "./pages/TraceDetails";
 import Evaluators from "./pages/Evaluators";
 import Sessions from "./pages/Sessions";
 import Alerts from "./pages/Alerts";
@@ -22,7 +23,7 @@ import CreatePrompt from "./pages/CreatePrompt";
 import CreateTemplate from "./pages/CreateTemplate";
 import CreateEvaluator from "./pages/CreateEvaluator";
 import LoginPage from "./pages/LoginPage";
-import TraceDetails from "./pages/TraceDetails";
+
 
 
 // Layout
