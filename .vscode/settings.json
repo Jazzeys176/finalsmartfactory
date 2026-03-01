@@ -6,5 +6,6 @@
     "azureFunctions.projectRuntime": "~4",
     "debug.internalConsoleOptions": "neverOpen",
     "appService.defaultWebAppToDeploy": "/subscriptions/b39e360d-3b40-4285-bc7d-11ef4344990d/resourceGroups/rg_techdemo_2026/providers/Microsoft.Web/sites/smart-factory-backend-code",
-    "appService.deploySubpath": "backend"
+    "appService.deploySubpath": "backend",
+    "git.ignoreLimitWarning": true
 }

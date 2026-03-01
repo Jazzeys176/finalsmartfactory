@@ -40,6 +40,7 @@ def normalize_trace(t: dict) -> dict:
     performance = t.get("performance", {}) or {}
     usage = t.get("usage", {}) or {}
     cost = t.get("cost", {}) or {}
+    spans = t.get("spans", []) or []
 
     return {
         "trace_id": t.get("trace_id") or t.get("id"),
@@ -80,7 +81,9 @@ def normalize_trace(t: dict) -> dict:
 
         # Retrieval
         "retrieval": t.get("retrieval"),
-        "spans": t.get("spans", []),
+
+        # Spans
+        "spans": spans,
     }
 
 

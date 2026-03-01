@@ -8,9 +8,11 @@ Centralized Cosmos DB access layer.
 """
 
 from azure.cosmos import CosmosClient
-from shared.secrets import get_secret
+# from shared.secrets import get_secret
 
-
+from dotenv import load_dotenv
+import os
+load_dotenv()
 # =====================================================
 # Cosmos Configuration
 # =====================================================
@@ -18,8 +20,10 @@ from shared.secrets import get_secret
 COSMOS_DB = "llmops-data"  # static db name
 
 print("DEBUG: Fetching Cosmos DB connection strings...")
-COSMOS_CONN_READ = get_secret("COSMOS-CONN-READ")
-COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
+COSMOS_CONN_READ = os.getenv("COSMOS-CONN-READ")
+# COSMOS_CONN_READ= get_secret("COSMOS-CONN-READ")
+COSMOS_CONN_WRITE = os.getenv("COSMOS-CONN-WRITE")
+# COSMOS_CONN_WRITE= get_secret("COSMOS-CONN-WRITE")
 print("DEBUG: Successfully fetched Cosmos DB connection strings")
 
 

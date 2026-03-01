@@ -8,11 +8,12 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
   const { accounts, instance } = useMsal();
 
   // -------------------------------------------------------
-  // 1. User NOT logged in → redirect to login page
+  // 1. User NOT logged in -> redirect to login page
+  // BYPASS: Comment out redirect
   // -------------------------------------------------------
-  if (!accounts || accounts.length === 0) {
-    return <Navigate to="/login" replace />;
-  }
+  // if (!accounts || accounts.length === 0) {
+  //   return <Navigate to="/login" replace />;
+  // }
 
   const account = accounts[0];
   const userEmail = account?.username?.toLowerCase();
@@ -23,6 +24,8 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
   // -------------------------------------------------------
   const hasAccess = roles.includes(REQUIRED_ROLE);
 
+  // BYPASS: Comment out access denied UI
+  /*
   if (!hasAccess) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0e1117] text-white">
@@ -56,6 +59,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       </div>
     );
   }
+  */
 
   // -------------------------------------------------------
   // 3. Authorized → Render protected content
