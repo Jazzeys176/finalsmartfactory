@@ -91,15 +91,35 @@ const Dashboard: React.FC = () => {
     })
   );
 
-  const dauData = [
-    { name: "Mon", users: 240 },
-    { name: "Tue", users: 315 },
-    { name: "Wed", users: 290 },
-    { name: "Thu", users: 360 },
-    { name: "Fri", users: 300 },
-    { name: "Sat", users: 190 },
-    { name: "Sun", users: 170 },
-  ];
+  // Transform daily_users data for LineChart
+  // Expects metrics.daily_users as { "2026-03-01": 5, "2026-03-02": 8 } or similar
+  // If only total_users exists, create a single point for today
+  const dailyActiveUsers = (() => {
+    const dailyData = metrics.daily_users ?? {};
+    const entries = Object.entries(dailyData);
+
+    if (entries.length > 0) {
+      return entries
+        .map(([date, users]) => ({
+          name: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          users: Number(users),
+          fullDate: date,
+        }))
+        .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
+    }
+
+    // Fallback: if we have total_users but no daily breakdown, show as single point for today
+    if (metrics.total_users !== undefined && metrics.total_users !== null) {
+      const today = new Date();
+      return [{
+        name: today.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        users: Number(metrics.total_users),
+        fullDate: today.toISOString().split('T')[0],
+      }];
+    }
+
+    return [];
+  })();
 
   return (
     <div className="space-y-8 text-white">
@@ -163,46 +183,65 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
           <h3 className="font-bold mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-gray-200" />
+            <Activity size={18} className="text-gray-400" />
             Daily Active Users
           </h3>
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dauData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
-                <XAxis dataKey="name" stroke="#9ca3af" axisLine={false} tickLine={false} />
-                <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} />
+          {dailyActiveUsers.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={dailyActiveUsers}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                <XAxis
+                  dataKey="name"
+                  stroke="#9ca3af"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                />
+                <YAxis
+                  stroke="#9ca3af"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  domain={[0, (dataMax: number) => Math.max(dataMax * 2, dataMax + 3)]}
+                />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#161a23', borderColor: '#2d3748', borderRadius: '8px' }}
-                  itemStyle={{ color: '#2dd4bf' }}
+                  contentStyle={{
+                    backgroundColor: '#1e293b',
+                    borderColor: '#334155',
+                    color: '#f1f5f9',
+                    borderRadius: '8px'
+                  }}
+                  itemStyle={{ color: '#f1f5f9' }}
                 />
                 <Line
                   type="monotone"
                   dataKey="users"
                   stroke="#2dd4bf"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: "#2dd4bf", strokeWidth: 0 }}
-                  activeDot={{ r: 6, fill: "#2dd4bf", strokeWidth: 0 }}
+                  strokeWidth={3}
+                  dot={{ r: 6, fill: '#2dd4bf', strokeWidth: 0 }}
+                  activeDot={{ r: 8, fill: '#2dd4bf' }}
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          ) : (
+            <EmptyState text="Insufficient data to display user metrics" />
+          )}
         </div>
 
         <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
           <h3 className="font-bold mb-4">Response Quality</h3>
           <EmptyState text="No quality distribution data available" />
         </div>
-      </div>
+      </div >
 
       {/* User Feedback */}
-      <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
+      < div className="bg-[#161a23] border border-gray-800 rounded-xl p-6" >
         <h3 className="font-bold mb-4">User Feedback Summary</h3>
         <EmptyState text="Feedback ingestion not enabled" />
-      </div>
+      </div >
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      < div className="grid grid-cols-1 lg:grid-cols-2 gap-6" >
         <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
           <h3 className="font-bold mb-4">Traces by Name</h3>
           {tracesByName.length > 0 ? (
@@ -234,62 +273,66 @@ const Dashboard: React.FC = () => {
             <EmptyState text="No cost data available" />
           )}
         </div>
-      </div>
+      </div >
 
       {/* Evaluation Scores Summary */}
-      <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
+      < div className="bg-[#161a23] border border-gray-800 rounded-xl p-6" >
         <h3 className="font-bold mb-4">Evaluation Scores Summary</h3>
-        {evaluationScores.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="text-gray-400 border-b border-gray-700">
-              <tr>
-                <th className="text-left py-2">Score Name</th>
-                <th className="text-right py-2">Count</th>
-                <th className="text-right py-2">Average</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evaluationScores.map((s) => (
-                <tr key={s.name} className="border-b border-gray-800">
-                  <td className="py-2 text-left">{s.name}</td>
-                  <td className="py-2 text-right">{s.count}</td>
-                  <td className="py-2 text-right">{s.average}</td>
+        {
+          evaluationScores.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead className="text-gray-400 border-b border-gray-700">
+                <tr>
+                  <th className="text-left py-2">Score Name</th>
+                  <th className="text-right py-2">Count</th>
+                  <th className="text-right py-2">Average</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <EmptyState text="No evaluation data available" />
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {evaluationScores.map((s) => (
+                  <tr key={s.name} className="border-b border-gray-800">
+                    <td className="py-2 text-left">{s.name}</td>
+                    <td className="py-2 text-right">{s.count}</td>
+                    <td className="py-2 text-right">{s.average}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <EmptyState text="No evaluation data available" />
+          )
+        }
+      </div >
 
       {/* Model Usage Details */}
-      <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
+      < div className="bg-[#161a23] border border-gray-800 rounded-xl p-6" >
         <h3 className="font-bold mb-4">Model Usage Details</h3>
-        {modelUsage.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="text-gray-400 border-b border-gray-700">
-              <tr>
-                <th className="text-left py-2">Model</th>
-                <th className="text-right py-2">Tokens</th>
-                <th className="text-right py-2">Cost (USD)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {modelUsage.map((m) => (
-                <tr key={m.name} className="border-b border-gray-800">
-                  <td className="py-2 text-left">{m.name}</td>
-                  <td className="py-2 text-right">{m.tokens.toLocaleString()}</td>
-                  <td className="py-2 text-right">${m.cost.toFixed(5)}</td>
+        {
+          modelUsage.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead className="text-gray-400 border-b border-gray-700">
+                <tr>
+                  <th className="text-left py-2">Model</th>
+                  <th className="text-right py-2">Tokens</th>
+                  <th className="text-right py-2">Cost (USD)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <EmptyState text="No model usage data available" />
-        )}
-      </div>
-    </div>
+              </thead>
+              <tbody>
+                {modelUsage.map((m) => (
+                  <tr key={m.name} className="border-b border-gray-800">
+                    <td className="py-2 text-left">{m.name}</td>
+                    <td className="py-2 text-right">{m.tokens.toLocaleString()}</td>
+                    <td className="py-2 text-right">${m.cost.toFixed(5)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <EmptyState text="No model usage data available" />
+          )
+        }
+      </div >
+    </div >
   );
 };
 
