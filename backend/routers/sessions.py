@@ -116,24 +116,40 @@ def list_sessions():
             session_id = session_obj.get("session_id")
             trace_id = t.get("trace_id")
 
+            # Get session info from nested object or flat structure
+            session_data = t.get("session", {}) or {}
+            session_id = session_data.get("session_id") or t.get("session_id")
             if not session_id:
                 continue
 
             s = sessions[session_id]
 
             s["session_id"] = session_id
-            s["user_id"] = session_obj.get("user_id", "unknown")
+            s["user_id"] = session_data.get("user_id") or t.get("user_id", "unknown")
+            
+            # Environment from request
+            request_obj = t.get("request", {}) or {}
             s["environment"] = request_obj.get("environment")
 
             s["trace_count"] += 1
-            s["total_tokens"] += usage_obj.get("total_tokens", 0)
+            
+            # Tokens
+            usage = t.get("usage", {}) or {}
+            s["total_tokens"] += usage.get("total_tokens", 0) or t.get("tokens", 0)
 
             gen_cost = cost_obj.get("total_cost_usd", 0.0)
             eval_cost = trace_eval_cost.get(trace_id, 0.0)
 
             s["generation_cost_usd"] += gen_cost
             s["evaluation_cost_usd"] += eval_cost
+            # Cost
+            cost_obj = t.get("cost", {}) or {}
+            cost_usd = cost_obj.get("total_cost_usd", 0.0) or t.get("cost", 0.0)
+            s["total_cost_usd"] += cost_usd
+            s["total_cost_micro_usd"] += int(cost_usd * 1_000_000)
 
+            # Latency
+            perf_obj = t.get("performance", {}) or {}
             s["avg_latency_ms"] += perf_obj.get("latency_ms", 0)
 
             for ev_name, score in trace_eval_scores.get(trace_id, {}).items():
@@ -144,6 +160,9 @@ def list_sessions():
 
             if ts is not None:
 
+            # Timestamps
+            ts = normalize_ts(request_obj.get("timestamp") or t.get("timestamp"))
+            if ts:
                 if s["created"] is None or ts < s["created"]:
                     s["created"] = ts
 
@@ -223,10 +242,10 @@ def list_sessions():
 def get_session(session_id: str):
 
     try:
-
+        # Try both nested and flat session_id field
         traces = list(
             traces_container.query_items(
-                query="SELECT * FROM c WHERE c.session.session_id=@sid",
+                query="SELECT * FROM c WHERE c.session.session_id=@sid OR c.session_id=@sid",
                 parameters=[{"name": "@sid", "value": session_id}],
                 enable_cross_partition_query=True,
             )
@@ -277,24 +296,47 @@ def get_session(session_id: str):
         ]
 
         timestamps = [t for t in timestamps if t is not None]
+        first_session = traces[0].get("session", {}) or {}
+        first_request = traces[0].get("request", {}) or {}
+
+        # Get user_id from nested structure
+        user_id = first_session.get("user_id") or traces[0].get("user_id", "unknown")
+
+        total_cost_usd = 0.0
+        total_tokens = 0
+        total_latency_ms = 0
+
+        timestamps = []
+
+        for t in traces:
+            usage = t.get("usage", {}) or {}
+            total_tokens += usage.get("total_tokens", 0) or t.get("tokens", 0)
+            
+            cost_obj = t.get("cost", {}) or {}
+            total_cost_usd += cost_obj.get("total_cost_usd", 0.0) or t.get("cost", 0.0)
+
+            perf_obj = t.get("performance", {}) or {}
+            total_latency_ms += perf_obj.get("latency_ms", 0) or 0
+
+            request = t.get("request", {}) or {}
+            # Normalize timestamps
+            ts = normalize_ts(request.get("timestamp") or t.get("timestamp"))
+            if ts:
+                timestamps.append(ts)
 
         created = min(timestamps) if timestamps else None
         last_activity = max(timestamps) if timestamps else None
 
         now_sec = datetime.now(timezone.utc).timestamp()
 
-        if created and last_activity:
-
-            if now_sec - last_activity <= SESSION_IDLE_TIMEOUT:
-                effective_end = now_sec
-            else:
-                effective_end = last_activity
-
+        # Active session?
+        if last_activity and (now_sec - last_activity <= SESSION_IDLE_TIMEOUT):
+            effective_end = now_sec
         else:
             effective_end = None
 
         avg_scores = {}
-
+ 
         for name, total in eval_sum.items():
 
             count = eval_count[name]
@@ -333,6 +375,18 @@ def get_session(session_id: str):
                 else None
             ),
             "avg_scores": avg_scores,
+            "user_id": user_id,
+            "environment": first_request.get("environment"),
+            "trace_count": len(traces),
+            "total_tokens": total_tokens,
+            "total_cost_usd": safe_round(total_cost_usd, 6),
+            "total_cost_micro_usd": int(total_cost_usd * 1_000_000),
+            "avg_latency_ms": safe_round(total_latency_ms / len(traces), 2) if len(traces) > 0 else 0,
+            "created": created,
+            "last_activity": last_activity,
+            "session_start": ts_to_iso(created) if created else None,
+            "session_end": ts_to_iso(effective_end) if effective_end else None,
+            "session_duration_ms": int((effective_end - created) * 1000) if created and effective_end else None,
             "traces": traces,
         }
 

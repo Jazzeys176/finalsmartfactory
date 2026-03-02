@@ -55,7 +55,7 @@ const TraceModal: React.FC<TraceModalProps> = ({
                     Tokens
                   </label>
                   <p className="text-lg font-bold mt-1">
-                    {selectedTrace.total_tokens || 0}
+                    {(selectedTrace.total_tokens ?? selectedTrace.tokens ?? 0).toLocaleString()}
                   </p>
                 </div>
 
@@ -64,7 +64,7 @@ const TraceModal: React.FC<TraceModalProps> = ({
                     Estimated Cost
                   </label>
                   <p className="text-lg font-bold text-[#13bba4] mt-1">
-                    ${Number(selectedTrace.total_cost_usd || 0).toFixed(10)}
+                    ${Number(selectedTrace.total_cost_usd ?? selectedTrace.cost ?? 0).toFixed(4)}
                   </p>
                 </div>
               </div>
