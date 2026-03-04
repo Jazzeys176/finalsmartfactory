@@ -12,8 +12,8 @@ const Toast = ({ message, type, onClose }: any) => {
   return (
     <div
       className={`fixed bottom-6 right-6 min-w-[260px] max-w-[360px] px-5 py-3 rounded-xl border shadow-xl ${type === "success"
-          ? "bg-[#0e1713] border-[#13bba4] text-[#13bba4]"
-          : "bg-[#1b0e0e] border-red-500 text-red-400"
+        ? "bg-[#0e1713] border-[#13bba4] text-[#13bba4]"
+        : "bg-[#1b0e0e] border-red-500 text-red-400"
         }`}
     >
       <p className="text-sm font-semibold">{message}</p>
@@ -27,6 +27,7 @@ const CreateEvaluator: React.FC = () => {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [enableEnsemble, setEnableEnsemble] = useState(false);
+  const [requiresContext, setRequiresContext] = useState(false);
 
   const [name, setName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
@@ -88,6 +89,8 @@ const CreateEvaluator: React.FC = () => {
       execution: {
         sampling_rate: samplingRate / 100,
         delay_ms: delaySeconds * 1000,
+        requires_context: requiresContext,
+
       },
       enable_ensemble: enableEnsemble,
     };
@@ -212,8 +215,8 @@ const CreateEvaluator: React.FC = () => {
             <button
               onClick={() => setTargetType("traces")}
               className={`px-5 py-2 rounded-lg font-bold text-sm ${targetType === "traces"
-                  ? "bg-[#13bba4] text-black"
-                  : "bg-black text-gray-400 border border-gray-800"
+                ? "bg-[#13bba4] text-black"
+                : "bg-black text-gray-400 border border-gray-800"
                 }`}
             >
               Traces
@@ -222,8 +225,8 @@ const CreateEvaluator: React.FC = () => {
             <button
               onClick={() => setTargetType("dataset")}
               className={`px-5 py-2 rounded-lg font-bold text-sm ${targetType === "dataset"
-                  ? "bg-[#13bba4] text-black"
-                  : "bg-black text-gray-400 border border-gray-800"
+                ? "bg-[#13bba4] text-black"
+                : "bg-black text-gray-400 border border-gray-800"
                 }`}
             >
               Dataset
@@ -282,6 +285,33 @@ const CreateEvaluator: React.FC = () => {
             >
               <span
                 className={`absolute top-1 left-1 w-4 h-4 bg-black rounded-full transition ${enableEnsemble ? "translate-x-8" : ""
+                  }`}
+              />
+            </button>
+          </div>
+        </section>
+
+        {/* CONTEXT REQUIREMENT */}
+        <section className="bg-[#161a23] border border-gray-800 rounded-2xl p-6">
+          <h2 className="text-xl font-bold mb-6">Context Requirement</h2>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300 font-semibold">
+                Requires Retrieval Context
+              </p>
+              <p className="text-xs text-gray-500">
+                Evaluator will be skipped if retrieval did not run
+              </p>
+            </div>
+
+            <button
+              onClick={() => setRequiresContext(!requiresContext)}
+              className={`relative w-14 h-6 rounded-full transition ${requiresContext ? "bg-[#13bba4]" : "bg-gray-700"
+                }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 bg-black rounded-full transition ${requiresContext ? "translate-x-8" : ""
                   }`}
               />
             </button>

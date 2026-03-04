@@ -68,6 +68,9 @@ def create_evaluator(payload: dict):
         sampling_rate = float(execution.get("sampling_rate", 1.0))
         variance_threshold = float(execution.get("variance_threshold", 0.1))
 
+        # 🔹 NEW: read requires_context
+        requires_context = bool(execution.get("requires_context", False))
+
         # 🔥 NEW: enable_ensemble flag
         enable_ensemble = bool(payload.get("enable_ensemble", False))
 
@@ -98,6 +101,7 @@ def create_evaluator(payload: dict):
             "sampling_rate": sampling_rate,
             "variance_threshold": variance_threshold,
             "ensemble_deployments": ensemble_deployments,
+            "requires_context": requires_context,  # ← added
         }
 
         # ---------------------------

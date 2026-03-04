@@ -27,6 +27,15 @@ def normalize_trace(trace: dict) -> dict:
 
 
 # --------------------------------------------------
+# Evaluators that require retrieval context
+# --------------------------------------------------
+RETRIEVAL_REQUIRED_EVALUATORS = {
+    "hallucination",
+    "context_relevance",
+}
+
+
+# --------------------------------------------------
 # Azure Function Entry
 # --------------------------------------------------
 def main(documents: DocumentList):
@@ -74,10 +83,9 @@ def main(documents: DocumentList):
 
         executed_count = 0
 
-        # 🔥 NEW: deployment-based ensemble
         deployments = exec_cfg.get(
             "ensemble_deployments",
-            ["gpt-4o-mini"]  # fallback default
+            ["gpt-4o-mini"]
         )
 
         variance_threshold = exec_cfg.get("variance_threshold", 0.10)
@@ -90,6 +98,47 @@ def main(documents: DocumentList):
             if not trace_id:
                 continue
 
+            retrieval = trace.get("retrieval", {})
+            retrieved_context = trace.get("retrieved_context", [])
+
+            eval_id = f"{trace_id}:{evaluator_id}"
+
+            # --------------------------------------------------
+            # Skip evaluators requiring retrieval
+            # --------------------------------------------------
+            if evaluator_name in RETRIEVAL_REQUIRED_EVALUATORS:
+                if not retrieval.get("executed") or not retrieved_context:
+
+                    logging.info(
+                        f"[EvaluatorRunner] Skipping '{evaluator_name}' for trace {trace_id} (no retrieval context)"
+                    )
+
+                    skip_doc = {
+                        "id": eval_id,
+                        "trace_id": trace_id,
+                        "evaluator": evaluator_name,
+                        "evaluator_id": evaluator_id,
+                        "template_id": template_id,
+
+                        "status": "skipped",
+                        "reason": "no_retrieval_context",
+
+                        "score": None,
+                        "classification": None,
+
+                        "evaluation_cost_usd": 0,
+
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+
+                    try:
+                        evaluations_write.upsert_item(skip_doc)
+                        executed_count += 1
+                    except Exception:
+                        logging.exception("[EvaluatorRunner] Failed to persist skipped evaluation")
+
+                    continue
+
             # Sampling
             sampling_rate = exec_cfg.get("sampling_rate", 1.0)
             if random.random() > sampling_rate:
@@ -99,8 +148,6 @@ def main(documents: DocumentList):
             delay_ms = exec_cfg.get("delay_ms", 0)
             if delay_ms > 0:
                 time.sleep(delay_ms / 1000)
-
-            eval_id = f"{trace_id}:{evaluator_id}"
 
             # --------------------------------------------------
             # Idempotency Check
@@ -115,13 +162,15 @@ def main(documents: DocumentList):
                 continue
 
             # --------------------------------------------------
-            # Run ENSEMBLE (deployment-based)
+            # Run ENSEMBLE
             # --------------------------------------------------
             start_time = time.time()
 
             scores = {}
             classifications = {}
             raw_outputs = {}
+
+            total_eval_cost = 0.0
 
             try:
                 normalized = normalize_trace(trace)
@@ -136,6 +185,7 @@ def main(documents: DocumentList):
                     score = result.get("score")
                     classification = result.get("classification")
                     raw_output = result.get("raw_output")
+                    cost = result.get("cost_usd", 0)
 
                     if isinstance(score, (int, float)):
                         scores[deployment] = round(float(score), 2)
@@ -144,6 +194,8 @@ def main(documents: DocumentList):
                         classifications[deployment] = classification
 
                     raw_outputs[deployment] = raw_output
+
+                    total_eval_cost += cost
 
                 # -------------------------------
                 # Aggregate score
@@ -198,18 +250,22 @@ def main(documents: DocumentList):
                 )
 
                 status = "unstable" if unstable else "completed"
+                reason = None
 
             except Exception as e:
                 logging.exception(
                     f"[EvaluatorRunner] Evaluator '{evaluator_id}' failed for trace {trace_id}"
                 )
+
                 final_score = None
                 variance = None
                 agreement = None
                 final_classification = "failed"
                 raw_outputs = {"error": str(e)}
                 unstable = False
+
                 status = "failed"
+                reason = str(e)
 
             duration_ms = int((time.time() - start_time) * 1000)
 
@@ -219,25 +275,29 @@ def main(documents: DocumentList):
             doc = {
                 "id": eval_id,
                 "trace_id": trace_id,
+
                 "evaluator": evaluator_name,
                 "evaluator_id": evaluator_id,
                 "template_id": template_id,
 
-                # 🔥 Deployment ensemble fields
                 "deployments_used": deployments,
                 "individual_scores": scores,
                 "individual_classifications": classifications,
+
                 "ensemble_score": final_score,
                 "variance": variance,
                 "agreement": agreement,
                 "unstable": unstable,
 
-                # Backward compatibility
                 "score": final_score,
                 "classification": final_classification,
                 "raw_output": raw_outputs,
 
                 "status": status,
+                "reason": reason,
+
+                "evaluation_cost_usd": round(total_eval_cost, 6),
+
                 "duration_ms": duration_ms,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }

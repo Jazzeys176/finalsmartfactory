@@ -15,6 +15,15 @@ TEMPLATES_CONTAINER = DB_READ.get_container_client("templates")
 
 
 # ----------------------------------------------------
+# Pricing Table (USD per token)
+# ----------------------------------------------------
+MODEL_PRICING = {
+    "gpt-4o": {"input": 0.000005, "output": 0.000015},
+    "gpt-4o-mini": {"input": 0.00000015, "output": 0.0000006},
+}
+
+
+# ----------------------------------------------------
 # Fetch Evaluator
 # ----------------------------------------------------
 def fetch_evaluator(evaluator_id: str):
@@ -61,12 +70,10 @@ def parse_numeric_score(raw: Optional[str]) -> Optional[float]:
         if not raw:
             return None
 
-        # 1️⃣ Try "Score: X"
         match = re.search(r"score[:\s]+(\d+(?:\.\d+)?)", raw, re.IGNORECASE)
         if match:
             return float(match.group(1))
 
-        # 2️⃣ Fallback: first number found
         matches = re.findall(r"\d+(?:\.\d+)?", raw)
         if matches:
             return float(matches[0])
@@ -78,44 +85,46 @@ def parse_numeric_score(raw: Optional[str]) -> Optional[float]:
 
 
 # ----------------------------------------------------
-# Main Evaluator Execution (UPDATED)
+# Cost Calculation
+# ----------------------------------------------------
+def calculate_cost(model, prompt_tokens, completion_tokens):
+    pricing = MODEL_PRICING.get(model)
+
+    if not pricing:
+        return 0
+
+    input_cost = prompt_tokens * pricing["input"]
+    output_cost = completion_tokens * pricing["output"]
+
+    return input_cost + output_cost
+
+
+# ----------------------------------------------------
+# Main Evaluator Execution
 # ----------------------------------------------------
 def run_evaluator(
     evaluator_id: str,
     variables: dict,
-    deployment: Optional[str] = None  # 🔥 NEW
+    deployment: Optional[str] = None
 ) -> dict:
-    """
-    Fully dynamic evaluator runner.
-
-    If deployment is provided:
-        → It overrides template model.
-    Otherwise:
-        → Template model is used.
-    """
 
     logging.info(f"[engine] Starting run_evaluator for {evaluator_id}")
 
-    # 1️⃣ Load evaluator
     evaluator_doc = fetch_evaluator(evaluator_id)
     template_id = evaluator_doc["template"]["id"]
 
-    # Optional model override from evaluator config
     model_override = evaluator_doc.get("template", {}).get("model")
 
-    # 2️⃣ Load template
     template_doc = fetch_template(template_id)
 
     template_model = template_doc.get("model")
     prompt_template = template_doc["template"]
     required_inputs = template_doc.get("inputs", [])
 
-    # 🔥 Determine final model (deployment wins)
     model = deployment or model_override or template_model
 
     logging.info(f"[engine] Using model/deployment: {model}")
 
-    # 3️⃣ Build template variables
     template_variables = {}
 
     for key in required_inputs:
@@ -126,26 +135,36 @@ def run_evaluator(
         else:
             raise ValueError(f"Missing required template inputs: [{key}]")
 
-    # 4️⃣ Render prompt
     final_prompt = render_prompt(prompt_template, template_variables)
 
-    # 5️⃣ Call LLM (deployment-aware)
-    raw_output = call_llm(
-        model=model,  # 🔥 This is deployment name now
+    # ----------------------------------------------------
+    # Call LLM
+    # ----------------------------------------------------
+    response = call_llm(
+        model=model,
         prompt=final_prompt
     )
 
-    if not raw_output:
+    if not response:
         return {
             "evaluator_id": evaluator_id,
             "template_id": template_id,
             "model_used": model,
             "score": None,
             "classification": "failed",
-            "raw_output": "Empty response"
+            "raw_output": "Empty response",
+            "cost_usd": 0
         }
 
-    # 6️⃣ Parse score
+    # Expect response format
+    raw_output = response.get("text")
+    usage = response.get("usage", {})
+
+    prompt_tokens = usage.get("prompt_tokens", 0)
+    completion_tokens = usage.get("completion_tokens", 0)
+
+    cost = calculate_cost(model, prompt_tokens, completion_tokens)
+
     score = parse_numeric_score(raw_output)
 
     classification = "completed" if score is not None else "failed"
@@ -156,5 +175,6 @@ def run_evaluator(
         "model_used": model,
         "score": score,
         "classification": classification,
-        "raw_output": raw_output
+        "raw_output": raw_output,
+        "cost_usd": round(cost, 6)
     }

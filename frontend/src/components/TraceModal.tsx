@@ -55,7 +55,7 @@ const TraceModal: React.FC<TraceModalProps> = ({
                     Tokens
                   </label>
                   <p className="text-lg font-bold mt-1">
-                    {selectedTrace.tokens || 0}
+                    {selectedTrace.total_tokens || 0}
                   </p>
                 </div>
 

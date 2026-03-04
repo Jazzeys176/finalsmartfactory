@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from openai import AzureOpenAI
 from shared.secrets import get_secret
@@ -16,7 +16,7 @@ AZURE_OPENAI_KEY = get_secret("AZURE-OPENAI-KEY")
 client = AzureOpenAI(
     api_key=AZURE_OPENAI_KEY,
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
-    api_version="2024-10-21"  # Keep aligned with deployment
+    api_version="2024-10-21"
 )
 
 
@@ -25,22 +25,13 @@ client = AzureOpenAI(
 # ----------------------------------------------------
 
 def call_llm(
-    model: str,  # 🔥 This is deployment name (e.g., "gpt-4o", "gpt-4o-mini")
+    model: str,
     prompt: str,
     max_tokens: int = 200,
     temperature: float = 0.0,
     timeout: int = 30,
     max_retries: int = 2
-) -> Optional[str]:
-    """
-    Calls Azure OpenAI safely using deployment name.
-
-    Designed for evaluator usage (deterministic numeric output).
-
-    Returns:
-        - Clean string output
-        - None if call fails
-    """
+) -> Optional[Dict[str, Any]]:
 
     attempt = 0
 
@@ -49,7 +40,7 @@ def call_llm(
             start_time = time.time()
 
             response = client.chat.completions.create(
-                model=model,  # 🔥 Deployment name
+                model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 messages=[
@@ -70,14 +61,24 @@ def call_llm(
                 logging.error(f"[llm:{model}] Empty response")
                 return None
 
+            prompt_tokens = response.usage.prompt_tokens
+            completion_tokens = response.usage.completion_tokens
+
             logging.info(
                 f"[llm:{model}] Success | "
                 f"Latency={latency_ms}ms | "
-                f"PromptTokens={response.usage.prompt_tokens} | "
-                f"CompletionTokens={response.usage.completion_tokens}"
+                f"PromptTokens={prompt_tokens} | "
+                f"CompletionTokens={completion_tokens}"
             )
 
-            return content.strip()
+            return {
+                "text": content.strip(),
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens
+                },
+                "latency_ms": latency_ms
+            }
 
         except Exception as e:
             logging.warning(
@@ -86,7 +87,6 @@ def call_llm(
 
             attempt += 1
 
-            # Exponential backoff
             if attempt <= max_retries:
                 sleep_time = 2 ** attempt
                 logging.info(f"[llm:{model}] Retrying in {sleep_time}s...")

@@ -101,20 +101,33 @@ export default function Traces() {
 
                   <td className="px-3 py-2">
                     <div className="flex gap-1.5 flex-wrap max-w-[260px]">
-                      {Object.entries(scores).map(([k, v]) => (
-                        <span
-                          key={k}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
-                            ${v < 0.3
-                              ? "bg-[#3a1d16] text-[#ffb29b]"
-                              : v < 0.6
-                                ? "bg-[#2f1e0a] text-[#fcd34d]"
-                                : "bg-[#0d2a1f] text-[#6ee7b7]"
-                            }`}
-                        >
-                          {k}: {Number(v).toFixed(2)}
-                        </span>
-                      ))}
+                      {Object.entries(scores).map(([k, v]) => {
+                        if (v === null || v === undefined) {
+                          return (
+                            <span
+                              key={k}
+                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-800 text-gray-400"
+                            >
+                              {k}: Skipped
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <span
+                            key={k}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
+        ${v < 0.3
+                                ? "bg-[#3a1d16] text-[#ffb29b]"
+                                : v < 0.6
+                                  ? "bg-[#2f1e0a] text-[#fcd34d]"
+                                  : "bg-[#0d2a1f] text-[#6ee7b7]"
+                              }`}
+                          >
+                            {k}: {Number(v).toFixed(2)}
+                          </span>
+                        );
+                      })}
                     </div>
                   </td>
                 </tr>
