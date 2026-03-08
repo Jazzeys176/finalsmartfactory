@@ -137,7 +137,7 @@ export default function Traces() {
             {filteredTraces.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
-                  No traces match “{search}”
+                  No traces match "{search}"
                 </td>
               </tr>
             )}
