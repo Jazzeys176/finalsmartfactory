@@ -5,7 +5,7 @@ import {
   Navigate,
 } from "react-router-dom";
 
-import RequireAuth from "./auth/RequireAuth";
+
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -37,18 +37,16 @@ export default function App() {
         {/* Public Login Page */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected Routes */}
+        {/* Protected Routes (Bypassed RequireAuth) */}
         <Route
           path="/*"
           element={
-            <RequireAuth>
-              <ProtectedLayout />
-            </RequireAuth>
+            <ProtectedLayout />
           }
         />
 
-        {/* Default → redirect to login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Default → redirect to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>
   );

@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000";
+// "https://smart-ai-llmops-backend.azurewebsites.net";
+const API_BASE_URL = "http://localhost:8000"
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
