@@ -1,19 +1,31 @@
 import { Link, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Activity,
+  Clock,
+  ClipboardCheck,
+  ListTodo,
+  MessageSquare,
+  Database,
+  AlertTriangle,
+  FileText,
+  Settings
+} from 'lucide-react';
 
 export default function Sidebar() {
   const { pathname } = useLocation();
 
   const menu = [
-    { name: "Dashboard", path: "/dashboard", icon: "📊" },
-    { name: "Tracing", path: "/traces", icon: "📋" },
-    { name: "Sessions", path: "/sessions", icon: "👥" },
-    { name: "Evaluators", path: "/evaluators", icon: "✅" },
-    { name: "Annotation Queues", path: "/annotations", icon: "📝" },
-    { name: "Prompts", path: "/prompts", icon: "📑" },
-    { name: "Datasets", path: "/datasets", icon: "📁" },
-    { name: "Alerts", path: "/alerts", icon: "🔔" },
-    { name: "Audit", path: "/audit", icon: "📄" },
-    { name: "Settings", path: "/settings", icon: "⚙️" },
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Tracing", path: "/traces", icon: Activity },
+    { name: "Sessions", path: "/sessions", icon: Clock },
+    { name: "Evaluators", path: "/evaluators", icon: ClipboardCheck },
+    { name: "Annotation Queues", path: "/annotations", icon: ListTodo },
+    { name: "Prompts", path: "/prompts", icon: MessageSquare },
+    { name: "Datasets", path: "/datasets", icon: Database },
+    { name: "Alerts", path: "/alerts", icon: AlertTriangle },
+    { name: "Audit", path: "/audit", icon: FileText },
+    { name: "Settings", path: "/settings", icon: Settings },
   ];
 
   return (
@@ -47,13 +59,12 @@ export default function Sidebar() {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-[#4db6ac] text-black shadow-lg hover:bg-[#4db6ac] hover:text-black font-semibold"
-                  : "text-white hover:bg-[#1e2330] hover:text-white"
-              }`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isActive
+                ? "bg-[#4db6ac] text-black shadow-lg hover:bg-[#4db6ac] hover:text-black font-semibold"
+                : "text-white hover:bg-[#1e2330] hover:text-white"
+                }`}
             >
-              <span className="text-lg">{item.icon}</span>
+              <span className="text-lg"><item.icon className="w-5 h-5" /></span>
               {item.name}
             </Link>
           );

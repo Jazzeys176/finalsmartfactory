@@ -1,21 +1,56 @@
-# Python
+# --- System / IDE ---
+.vscode/
+.idea/
+.DS_Store
+*.log
+Thumbs.db
+
+# --- Environment Secrets (CRITICAL) ---
+# Prevents leaking Entra ID Client IDs, Secrets, and API Keys
+.env
+.env.local
+.env.*.local
+*.env
+./backend/.env
+
+# --- Python / Backend (FastAPI & Azure Functions) ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
 
-
-
-# Azure ZIP builds
-*.zip
-
-# Node
+# --- Node / Frontend (React + Vite) ---
 node_modules/
 dist/
-build/
+dist-ssr/
+*.local
+.eslintcache
 
-# Vite
-.vite/
+# --- Databases / Local Storage ---
+# Since you are using DuckDB for local storage
+*.duckdb
+*.db
+*.sqlite
 
-# Editor
+# --- Azure Specific ---
+.azure/
+.funcignore
+bin/
+obj/
+local.settings.json
 
-backend/.env
-.env
+# --- MLOps / Tracking ---
+# If you run MLflow locally and don't want to push the tracking data
+mlruns/
+.artifacts/
+
+# --- OS / Misc ---
+azure_architecture_diagram.png
+# (Optional: Keep this if you want it in the repo, otherwise ignore)

@@ -9,6 +9,7 @@ import {
   MessageSquare,
   ShieldAlert,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 
 import {
@@ -18,6 +19,9 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LineChart,
+  Line,
+  CartesianGrid,
 } from "recharts";
 
 import { api } from "../api/client";
@@ -87,6 +91,16 @@ const Dashboard: React.FC = () => {
     })
   );
 
+  const dauData = [
+    { name: "Mon", users: 240 },
+    { name: "Tue", users: 315 },
+    { name: "Wed", users: 290 },
+    { name: "Thu", users: 360 },
+    { name: "Fri", users: 300 },
+    { name: "Sat", users: 190 },
+    { name: "Sun", users: 170 },
+  ];
+
   return (
     <div className="space-y-8 text-white">
 
@@ -148,8 +162,31 @@ const Dashboard: React.FC = () => {
       {/* Daily Active Users + Response Quality (SAME ROW) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">
-          <h3 className="font-bold mb-4">Daily Active Users</h3>
-          <EmptyState text="Insufficient data to display time-series metrics" />
+          <h3 className="font-bold mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-gray-200" />
+            Daily Active Users
+          </h3>
+          <div className="h-[260px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dauData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+                <XAxis dataKey="name" stroke="#9ca3af" axisLine={false} tickLine={false} />
+                <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#161a23', borderColor: '#2d3748', borderRadius: '8px' }}
+                  itemStyle={{ color: '#2dd4bf' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="users"
+                  stroke="#2dd4bf"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: "#2dd4bf", strokeWidth: 0 }}
+                  activeDot={{ r: 6, fill: "#2dd4bf", strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         <div className="bg-[#161a23] border border-gray-800 rounded-xl p-6">

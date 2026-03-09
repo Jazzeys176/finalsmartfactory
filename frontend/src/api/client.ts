@@ -143,33 +143,21 @@ export interface EvaluationLog {
 }
 
 export interface RCAResult {
+  id: string;
+  trace_id: string;
   findings: string[];
   evidence: string[];
   suggestions: string[];
+  status: string;
+  evaluators_used: string[];
 }
-export const updateEvaluatorStatus = async (
-  evaluatorId: string,
-  status: string
-) => {
 
-  const res = await api.post(`/evaluators/${evaluatorId}/status`, {
-    status
-  });
-
-  return res.data;
-
+export const updateEvaluatorStatus = async (id: string, status: "active" | "inactive") => {
+  const response = await api.put(`/evaluators/${id}/status`, { status });
+  return response.data;
 };
 
-
-export const updateSamplingRate = async (
-  evaluatorId: string,
-  rate: number
-) => {
-
-  const res = await api.post(`/evaluators/${evaluatorId}/sampling`, {
-    sampling_rate: rate
-  });
-
-  return res.data;
-
+export const updateSamplingRate = async (id: string, rate: number) => {
+  const response = await api.put(`/evaluators/${id}/sampling`, { sampling_rate: rate });
+  return response.data;
 };
