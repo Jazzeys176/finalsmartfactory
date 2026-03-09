@@ -52,6 +52,7 @@ metrics_read = DB_READ.get_container_client("metrics")
 templates_read = DB_READ.get_container_client("templates")
 evaluators_read = DB_READ.get_container_client("evaluators")
 audit_logs_read = DB_READ.get_container_client("audit_logs")
+rca_results_read = DB_READ.get_container_client("rca_results")
 
 
 # =====================================================
@@ -64,6 +65,7 @@ metrics_write = DB_WRITE.get_container_client("metrics")
 templates_write = DB_WRITE.get_container_client("templates")
 evaluators_write = DB_WRITE.get_container_client("evaluators")
 audit_logs_write = DB_WRITE.get_container_client("audit_logs")
+rca_results_write = DB_WRITE.get_container_client("rca_results")
 
 
 # =====================================================

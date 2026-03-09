@@ -1,10 +1,8 @@
 azure-functions
 azure-cosmos==4.5.1
-requests
-pandas
 azure-identity
 azure-keyvault-secrets
 pydantic
 jinja2==3.1.4
 openai
-groq
+python-dotenv
