@@ -122,17 +122,11 @@ def list_sessions():
             s = sessions[session_id]
 
             s["session_id"] = session_id
-            s["user_id"] = session_data.get("user_id") or t.get("user_id", "unknown")
-            
-            # Environment from request
-            request_obj = t.get("request", {}) or {}
+            s["user_id"] = session_obj.get("user_id", "unknown")
             s["environment"] = request_obj.get("environment")
 
             s["trace_count"] += 1
-            
-            # Tokens
-            usage = t.get("usage", {}) or {}
-            s["total_tokens"] += usage.get("total_tokens", 0) or t.get("tokens", 0)
+            s["total_tokens"] += usage_obj.get("total_tokens", 0)
 
             gen_cost = cost_obj.get("total_cost_usd", 0.0)
             eval_cost = trace_eval_cost.get(trace_id, 0.0)
@@ -140,16 +134,11 @@ def list_sessions():
             s["generation_cost_usd"] += gen_cost
             s["evaluation_cost_usd"] += eval_cost
 
-            # Latency
-            perf_obj = t.get("performance", {}) or {}
             s["avg_latency_ms"] += perf_obj.get("latency_ms", 0)
 
-            # Timestamps
-            ts = normalize_ts(request_obj.get("timestamp") or t.get("timestamp"))
-            if ts:
-                for ev_name, score in trace_eval_scores.get(trace_id, {}).items():
-                    s["eval_sum"][ev_name] += score
-                    s["eval_count"][ev_name] += 1
+            for ev_name, score in trace_eval_scores.get(trace_id, {}).items():
+                s["eval_sum"][ev_name] += score
+                s["eval_count"][ev_name] += 1
 
             ts = normalize_ts(request_obj.get("timestamp"))
 
@@ -234,9 +223,10 @@ def list_sessions():
 def get_session(session_id: str):
 
     try:
+
         traces = list(
             traces_container.query_items(
-                query="SELECT * FROM c WHERE c.session.session_id=@sid OR c.session_id=@sid",
+                query="SELECT * FROM c WHERE c.session.session_id=@sid",
                 parameters=[{"name": "@sid", "value": session_id}],
                 enable_cross_partition_query=True,
             )

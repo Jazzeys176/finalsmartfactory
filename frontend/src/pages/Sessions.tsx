@@ -128,9 +128,9 @@ export default function Sessions() {
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
                     {formatDuration(
                       s.session_duration_ms ??
-                        (s.last_activity && s.created
-                          ? (s.last_activity - s.created) * 1000
-                          : undefined)
+                      (s.last_activity && s.created
+                        ? (s.last_activity - s.created) * 1000
+                        : undefined)
                     )}
                   </td>
 
@@ -138,9 +138,9 @@ export default function Sessions() {
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] font-medium">
                     {formatDate(
                       s.session_start ??
-                        (s.created
-                          ? new Date(s.created * 1000).toISOString()
-                          : undefined)
+                      (s.created
+                        ? new Date(s.created * 1000).toISOString()
+                        : undefined)
                     )}
                   </td>
                 </tr>
