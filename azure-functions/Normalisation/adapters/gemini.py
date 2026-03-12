@@ -1,23 +1,74 @@
 from typing import Dict, Any, List
+
 from .base import BaseProviderAdapter
 from ..schema import RetrievalInfo, SpanModel
 from ..utils import clean_text
+from ..utils import compute_retrieval_metrics
 from ..pricing import calculate_span_cost
 
 
 class GeminiAdapter(BaseProviderAdapter):
 
     # ============================================================
-    # USAGE EXTRACTION (TOP-LEVEL PROVIDER USAGE)
+    # INTERNAL HELPER — SAFE USAGE EXTRACTION
+    # ============================================================
+
+    def _get_usage(self, span: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract usage from span safely.
+        """
+
+        # Case 1: normalized usage
+        usage = span.get("usage")
+        if usage:
+            return usage
+
+        # Case 2: metadata usage
+        usage = (
+            span.get("metadata", {})
+            .get("usage", {})
+        )
+        if usage:
+            return usage
+
+        return {}
+
+    # ============================================================
+    # USAGE EXTRACTION (TRACE LEVEL)
     # ============================================================
 
     def extract_usage(self, raw: Dict[str, Any]):
 
-        usage = raw.get("provider_raw", {}).get("usage", {}) or {}
+        # Prefer LLM span usage
+        for span in raw.get("spans") or []:
+            if span.get("type") == "llm":
 
-        prompt = int(usage.get("prompt_tokens", 0) or 0)
-        completion = int(usage.get("completion_tokens", 0) or 0)
-        total = int(usage.get("total_tokens", prompt + completion) or 0)
+                usage = self._get_usage(span)
+
+                if usage:
+                    prompt = int(usage.get("prompt_tokens", 0) or 0)
+                    completion = int(usage.get("completion_tokens", 0) or 0)
+                    total = int(usage.get("total_tokens", prompt + completion) or 0)
+
+                    return prompt, completion, total
+
+        provider_raw = raw.get("provider_raw", {}) or {}
+
+        # Case 2: normalized provider usage
+        usage = provider_raw.get("usage")
+
+        if usage:
+            prompt = int(usage.get("prompt_tokens", 0) or 0)
+            completion = int(usage.get("completion_tokens", 0) or 0)
+            total = int(usage.get("total_tokens", prompt + completion) or 0)
+            return prompt, completion, total
+
+        # Case 3: native Gemini usage metadata
+        usage_meta = provider_raw.get("usage_metadata", {}) or {}
+
+        prompt = int(usage_meta.get("prompt_token_count", 0) or 0)
+        completion = int(usage_meta.get("candidates_token_count", 0) or 0)
+        total = int(usage_meta.get("total_token_count", prompt + completion) or 0)
 
         return prompt, completion, total
 
@@ -27,58 +78,35 @@ class GeminiAdapter(BaseProviderAdapter):
 
     def extract_retrieval(self, raw: Dict[str, Any]):
 
-        rag = raw.get("rag_data", {}) or {}
-        scores = rag.get("retrieval_scores", {}) or {}
+        retrieval_span = None
 
-        confidence = raw.get("retrieval_confidence")
+        for span in raw.get("spans") or []:
+            if span.get("type") == "retrieval":
+                retrieval_span = span
+                break
 
-        # ------------------------------------------------
-        # Ensure confidence is always a float
-        # ------------------------------------------------
-        if isinstance(confidence, dict):
-            confidence = confidence.get("avg_score")
+        if not retrieval_span:
+            return RetrievalInfo(
+                executed=False,
+                documents_found=0,
+                retrieval_confidence=None,
+                best_score=None,
+            )
 
-        if confidence is None:
-            confidence = scores.get("avg_score")
+        meta = retrieval_span.get("metadata", {}) or {}
 
-        if confidence is not None:
-            confidence = float(confidence)
+        docs = meta.get("documents", []) or []
+        scores = meta.get("scores", []) or []
 
-        # ------------------------------------------------
-        # Documents found
-        # ------------------------------------------------
-        documents_found = raw.get("documents_found")
+        documents_found = len(docs)
 
-        if documents_found is None:
-            documents_found = rag.get("documents_found")
-
-        # fallback to span inspection
-        if documents_found is None:
-
-            for span in raw.get("spans", []):
-
-                if span.get("type") == "retrieval" or span.get("name") == "vector-search":
-
-                    docs = span.get("output", {}).get("documents", []) or []
-
-                    documents_found = len(docs)
-                    break
-
-        documents_found = int(documents_found or 0)
-
-        # ------------------------------------------------
-        # Best score (cosine similarity = higher is better)
-        # ------------------------------------------------
-        best_score = scores.get("max_score")
-
-        if best_score is not None:
-            best_score = float(best_score)
+        metrics = compute_retrieval_metrics(scores)
 
         return RetrievalInfo(
-            executed=bool(raw.get("retrieval_executed", documents_found > 0)),
+            executed=True,
             documents_found=documents_found,
-            retrieval_confidence=confidence,
-            best_score=best_score,
+            retrieval_confidence=metrics["retrieval_confidence"],
+            best_score=metrics["max_score"],
         )
 
     # ============================================================
@@ -91,9 +119,9 @@ class GeminiAdapter(BaseProviderAdapter):
 
         model = raw.get("model", "") or ""
 
-        for span in raw.get("spans", []):
+        for span in raw.get("spans") or []:
 
-            usage = span.get("usage", {}) or {}
+            usage = self._get_usage(span)
             metadata = span.get("metadata", {}) or {}
 
             prompt = int(usage.get("prompt_tokens", 0) or 0)
@@ -111,8 +139,13 @@ class GeminiAdapter(BaseProviderAdapter):
 
             span_data = dict(
                 span_id=str(span.get("span_id", "unknown")),
+                parent_span_id=span.get("parent_span_id"),
+                trace_id=str(span.get("trace_id", raw.get("trace_id"))),
                 type=span_type,
                 name=span_name,
+                status=str(span.get("status", "success")),
+                start_time=int(span.get("start_time", 0) or 0),
+                end_time=int(span.get("end_time", 0) or 0),
                 latency_ms=latency,
                 prompt_tokens=prompt,
                 completion_tokens=completion,
@@ -120,7 +153,7 @@ class GeminiAdapter(BaseProviderAdapter):
                 cost_usd=cost,
             )
 
-            # Only for LLM spans (same behaviour as Groq)
+            # extra metadata for llm spans
             if span_type == "llm":
 
                 temperature = metadata.get("temperature")
@@ -135,6 +168,7 @@ class GeminiAdapter(BaseProviderAdapter):
             normalized_spans.append(SpanModel(**span_data))
 
         return normalized_spans
+
     # ============================================================
     # RETRIEVED DOCUMENT CONTENT
     # ============================================================
@@ -143,32 +177,23 @@ class GeminiAdapter(BaseProviderAdapter):
 
         contexts: List[str] = []
 
-        # Prefer canonical rag_data
-        rag_data = raw.get("rag_data", {}) or {}
+        for span in raw.get("spans") or []:
 
-        docs = rag_data.get("retrieved_documents", []) or []
+            if span.get("type") != "retrieval":
+                continue
 
-        for doc in docs:
+            meta = span.get("metadata", {}) or {}
 
-            content = doc.get("content") or doc.get("content_preview")
+            docs = meta.get("documents", []) or []
 
-            if content:
-                contexts.append(clean_text(content))
+            for doc in docs:
 
-        # fallback to span extraction
-        if not contexts:
+                if isinstance(doc, dict):
+                    content = doc.get("content") or doc.get("content_preview")
+                else:
+                    content = str(doc)
 
-            for span in raw.get("spans", []):
-
-                if span.get("type") == "retrieval" or span.get("name") == "vector-search":
-
-                    documents = span.get("output", {}).get("documents", []) or []
-
-                    for doc in documents:
-
-                        content = doc.get("content")
-
-                        if content:
-                            contexts.append(clean_text(content))
+                if content:
+                    contexts.append(clean_text(content))
 
         return contexts

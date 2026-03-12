@@ -1,17 +1,26 @@
+THRESHOLDS = {
+    "weak_retrieval": 0.6,
+    "moderate_retrieval_low": 0.6,
+    "moderate_retrieval_high": 0.75,
+    "context_ignore": 0.45,
+    "hallucination": 0.5,
+    "weak_retrieval_hallucination": 0.65,
+    "ungrounded_context": 0.3,
+    "low_context_utilization": 0.5,
+    "context_tokens_utilization": 200,
+    "context_tokens_min": 100,
+    "context_tokens_max": 3000,
+    "temperature": 0.7,
+    "conciseness": 0.45,
+    "completion_tokens": 450
+}
+
+
 def analyze_trace(trace, evals):
 
     findings = []
     evidence = []
     suggestions = []
-
-    # ------------------------------------------------------------
-    # Safe evaluator mapping
-    # ------------------------------------------------------------
-    eval_map = {
-        e.get("evaluator"): e
-        for e in evals
-        if e.get("evaluator") is not None
-    }
 
     # ------------------------------------------------------------
     # Extract telemetry (normalized schema)
@@ -53,7 +62,6 @@ def analyze_trace(trace, evals):
     temperature = llm_span.get("temperature")
     context_tokens = llm_span.get("context_tokens", 0)
 
-    # telemetry evidence
     evidence.append(f"documents_found={documents_found}")
     evidence.append(f"retrieval_confidence={retrieval_confidence}")
 
@@ -64,23 +72,33 @@ def analyze_trace(trace, evals):
         evidence.append(f"context_tokens={context_tokens}")
 
     # ------------------------------------------------------------
-    # Track evaluator states
+    # Track evaluator states + extract scores dynamically
     # ------------------------------------------------------------
 
     completed_evaluators = []
     skipped_evaluators = []
     failed_evaluators = []
 
+    scores = {}
+
     for e in evals:
 
         name = e.get("evaluator")
         status = e.get("status")
+        score = e.get("score")
 
         if not name:
             continue
 
         if status == "completed":
+
             completed_evaluators.append(name)
+
+            try:
+                scores[name] = float(score)
+                evidence.append(f"{name}_score={scores[name]}")
+            except:
+                pass
 
         elif status == "skipped":
 
@@ -106,30 +124,9 @@ def analyze_trace(trace, evals):
             failed_evaluators.append(name)
             evidence.append(f"{name}_evaluator_failed")
 
-    # ------------------------------------------------------------
-    # Extract evaluator scores
-    # ------------------------------------------------------------
-
-    def get_score(name):
-
-        ev = eval_map.get(name)
-
-        if not ev:
-            return None
-
-        if ev.get("status") != "completed":
-            return None
-
-        score = ev.get("score")
-
-        try:
-            return float(score)
-        except:
-            return None
-
-    context_score = get_score("context_relevance")
-    halluc_score = get_score("hallucination")
-    concise_score = get_score("conciseness")
+    context_score = scores.get("context_relevance")
+    halluc_score = scores.get("hallucination")
+    concise_score = scores.get("conciseness")
 
     # ------------------------------------------------------------
     # 1 Retrieval Failure
@@ -149,7 +146,7 @@ def analyze_trace(trace, evals):
     # 2 Weak Retrieval
     # ------------------------------------------------------------
 
-    if documents_found > 0 and retrieval_confidence < 0.6:
+    if documents_found > 0 and retrieval_confidence < THRESHOLDS["weak_retrieval"]:
 
         findings.append("weak_retrieval_quality")
 
@@ -161,7 +158,11 @@ def analyze_trace(trace, evals):
     # 3 Moderate Retrieval
     # ------------------------------------------------------------
 
-    if 0.6 <= retrieval_confidence < 0.75:
+    if (
+        THRESHOLDS["moderate_retrieval_low"]
+        <= retrieval_confidence
+        < THRESHOLDS["moderate_retrieval_high"]
+    ):
 
         findings.append("moderate_retrieval_confidence")
 
@@ -175,9 +176,9 @@ def analyze_trace(trace, evals):
 
     if (
         context_score is not None
-        and context_score < 0.45
+        and context_score < THRESHOLDS["context_ignore"]
         and documents_found > 0
-        and retrieval_confidence >= 0.75
+        and retrieval_confidence >= THRESHOLDS["moderate_retrieval_high"]
     ):
 
         findings.append("generation_ignored_context")
@@ -190,7 +191,7 @@ def analyze_trace(trace, evals):
     # 5 Hallucination
     # ------------------------------------------------------------
 
-    if halluc_score is not None and halluc_score < 0.5:
+    if halluc_score is not None and halluc_score < THRESHOLDS["hallucination"]:
 
         if documents_found == 0:
 
@@ -200,12 +201,20 @@ def analyze_trace(trace, evals):
                 "Force refusal when no documents are retrieved."
             )
 
-        elif retrieval_confidence < 0.65:
+        elif retrieval_confidence < THRESHOLDS["weak_retrieval_hallucination"]:
 
             findings.append("hallucination_due_to_weak_retrieval")
 
             suggestions.append(
                 "Improve retrieval relevance or apply reranking."
+            )
+
+        elif context_score is not None and context_score < THRESHOLDS["ungrounded_context"]:
+
+            findings.append("ungrounded_answer")
+
+            suggestions.append(
+                "Model relied on prior knowledge instead of retrieved context."
             )
 
         else:
@@ -222,21 +231,21 @@ def analyze_trace(trace, evals):
 
     if (
         context_score is not None
-        and context_score < 0.5
-        and context_tokens > 200
+        and context_score < THRESHOLDS["low_context_utilization"]
+        and context_tokens > THRESHOLDS["context_tokens_utilization"]
     ):
 
         findings.append("low_context_utilization")
 
         suggestions.append(
-            "Model received context but did not properly use it. Strengthen grounding prompts."
+            "Model received context but did not properly use it."
         )
 
     # ------------------------------------------------------------
     # 7 Context Too Small
     # ------------------------------------------------------------
 
-    if retrieval_executed and documents_found > 0 and context_tokens < 100:
+    if retrieval_executed and documents_found > 0 and context_tokens < THRESHOLDS["context_tokens_min"]:
 
         findings.append("low_context_provided")
 
@@ -248,7 +257,7 @@ def analyze_trace(trace, evals):
     # 8 Context Overload
     # ------------------------------------------------------------
 
-    if context_tokens > 3000:
+    if context_tokens > THRESHOLDS["context_tokens_max"]:
 
         findings.append("context_overload")
 
@@ -260,7 +269,7 @@ def analyze_trace(trace, evals):
     # 9 High Temperature Generation
     # ------------------------------------------------------------
 
-    if temperature is not None and temperature > 0.7:
+    if temperature is not None and temperature > THRESHOLDS["temperature"]:
 
         findings.append("high_temperature_generation")
 
@@ -272,7 +281,7 @@ def analyze_trace(trace, evals):
     # 10 Over Verbose
     # ------------------------------------------------------------
 
-    if concise_score is not None and concise_score < 0.45:
+    if concise_score is not None and concise_score < THRESHOLDS["conciseness"]:
 
         findings.append("over_verbose_answer")
 
@@ -284,7 +293,7 @@ def analyze_trace(trace, evals):
     # 11 Excessive Generation
     # ------------------------------------------------------------
 
-    if completion_tokens > 450:
+    if completion_tokens > THRESHOLDS["completion_tokens"]:
 
         findings.append("excessive_generation_length")
 
