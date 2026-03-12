@@ -57,3 +57,4 @@ mlruns/
 # --- OS / Misc ---
 azure_architecture_diagram.png
 # (Optional: Keep this if you want it in the repo, otherwise ignore)
+*.md

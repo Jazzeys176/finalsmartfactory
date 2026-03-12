@@ -8,7 +8,9 @@ interface Session {
   total_tokens: number;
   total_cost_usd: number;
   total_cost_micro_usd: number;
-  created?: string;
+
+  created?: number;
+  last_activity?: number;
   session_start?: string;
   session_end?: string;
   session_duration_ms?: number;
@@ -123,12 +125,22 @@ export default function Sessions() {
 
                   {/* NEW → Duration */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
-                    {formatDuration(s.session_duration_ms)}
+                    {formatDuration(
+                      s.session_duration_ms ??
+                      (s.last_activity && s.created
+                        ? (s.last_activity - s.created) * 1000
+                        : undefined)
+                    )}
                   </td>
 
                   {/* Created Timestamp */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] font-medium">
-                    {formatDate(s.session_start)}
+                    {formatDate(
+                      s.session_start ??
+                      (s.created
+                        ? new Date(s.created * 1000).toISOString()
+                        : undefined)
+                    )}
                   </td>
                 </tr>
               ))}
