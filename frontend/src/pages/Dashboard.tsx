@@ -108,13 +108,13 @@ const Dashboard: React.FC = () => {
         .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
     }
 
-    // Fallback: if we have total_users but no daily breakdown, show as single point for today
+    // Fallback: if we have total_users but no daily breakdown, show as single point using generated_at
     if (metrics.total_users !== undefined && metrics.total_users !== null) {
-      const today = new Date();
+      const snapshotDate = metrics.generated_at ? new Date(metrics.generated_at) : new Date();
       return [{
-        name: today.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        name: snapshotDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         users: Number(metrics.total_users),
-        fullDate: today.toISOString().split('T')[0],
+        fullDate: snapshotDate.toISOString().split('T')[0],
       }];
     }
 
