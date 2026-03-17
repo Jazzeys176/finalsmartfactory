@@ -4,7 +4,7 @@ from typing import Optional
 from jinja2 import Template
 
 from shared.cosmos import DB_READ
-from shared.llm import call_llm
+from shared.llm import call_llm, client
 
 
 # ----------------------------------------------------
@@ -49,8 +49,6 @@ def fetch_template(template_id: str):
     except Exception as e:
         logging.error(f"[engine] Failed to load template {template_id}: {e}")
         raise
-
-
 # ----------------------------------------------------
 # Render Prompt
 # ----------------------------------------------------
@@ -60,8 +58,6 @@ def render_prompt(template_str: str, variables: dict) -> str:
     except Exception as e:
         logging.error(f"[engine] Failed to render template: {e}")
         raise
-
-
 # ----------------------------------------------------
 # Extract Numeric Score
 # ----------------------------------------------------
@@ -100,12 +96,102 @@ def calculate_cost(model, prompt_tokens, completion_tokens):
 
 
 # ----------------------------------------------------
+# Evaluation Logic
+# ----------------------------------------------------
+
+EMBEDDING_CACHE = {}
+SIMILARITY_CACHE = {}
+
+def get_embedding(text: str, model: str = "text-embedding-3-small") -> list:
+    """
+    Get text embedding from Azure OpenAI with in-memory caching.
+    """
+    if not text:
+        return []
+    
+    # Use model name and hash of text as cache key
+    cache_key = f"{model}:{hash(text)}"
+    if cache_key in EMBEDDING_CACHE:
+        return EMBEDDING_CACHE[cache_key]
+        
+    try:
+        response = client.embeddings.create(input=[text], model=model)
+        embedding = response.data[0].embedding
+        
+        # Store in cache
+        EMBEDDING_CACHE[cache_key] = embedding
+        return embedding
+    except Exception as e:
+        logging.error(f"[engine] Embedding failed: {e}")
+        return []
+
+
+def cosine_similarity(v1: list, v2: list) -> float:
+    if not v1 or not v2:
+        return 0.0
+    dot_product = sum(a * b for a, b in zip(v1, v2))
+    norm_a = sum(a * a for a in v1) ** 0.5
+    norm_b = sum(b * b for b in v2) ** 0.5
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot_product / (norm_a * norm_b)
+
+
+def compute_embedding_similarity(context: str, answer: str) -> float:
+    """
+    Semantic similarity using Azure OpenAI embeddings with result caching.
+    """
+    if not context or not answer:
+        return 0.0
+
+    # Cache the final similarity score directly
+    cache_key = f"{hash(context)}:{hash(answer)}"
+    if cache_key in SIMILARITY_CACHE:
+        return SIMILARITY_CACHE[cache_key]
+
+    v_context = get_embedding(context)
+    v_answer = get_embedding(answer)
+
+    score = cosine_similarity(v_context, v_answer)
+    result = round(score, 2)
+    
+    # Store in cache
+    SIMILARITY_CACHE[cache_key] = result
+    return result
+
+
+def compute_keyword_coverage(context: str, answer: str) -> float:
+    """
+    Refactored to also use semantic signals as requested.
+    """
+    context_words = set(context.lower().split())
+    answer_words = set(answer.lower().split())
+
+    if not answer_words:
+        return 0.0
+
+    overlap = context_words.intersection(answer_words)
+
+    return round(len(overlap) / len(answer_words), 2)
+
+
+# ----------------------------------------------------
+# Method Registry
+# ----------------------------------------------------
+METHOD_REGISTRY = {
+    "embedding_similarity": compute_embedding_similarity,
+    "keyword_coverage": compute_keyword_coverage
+}
+
+
+# ----------------------------------------------------
 # Main Evaluator Execution
 # ----------------------------------------------------
 def run_evaluator(
     evaluator_id: str,
     variables: dict,
-    deployment: Optional[str] = None
+    deployment: Optional[str] = None,
+    trace_methods: Optional[dict] = None
 ) -> dict:
 
     logging.info(f"[engine] Starting run_evaluator for {evaluator_id}")
@@ -138,7 +224,7 @@ def run_evaluator(
     final_prompt = render_prompt(prompt_template, template_variables)
 
     # ----------------------------------------------------
-    # Call LLM
+    # Call LLM (DEFAULT evaluation)
     # ----------------------------------------------------
     response = call_llm(
         model=model,
@@ -156,7 +242,6 @@ def run_evaluator(
             "cost_usd": 0
         }
 
-    # Expect response format
     raw_output = response.get("text")
     usage = response.get("usage", {})
 
@@ -165,15 +250,22 @@ def run_evaluator(
 
     cost = calculate_cost(model, prompt_tokens, completion_tokens)
 
-    score = parse_numeric_score(raw_output)
+    llm_score = parse_numeric_score(raw_output)
 
-    classification = "completed" if score is not None else "failed"
+    classification = "completed" if llm_score is not None else "failed"
+
+    final_score = llm_score
+
+    raw_output = {
+        "llm_output": raw_output,
+        "trace_methods": trace_methods
+    }
 
     return {
         "evaluator_id": evaluator_id,
         "template_id": template_id,
         "model_used": model,
-        "score": score,
+        "score": llm_score,
         "classification": classification,
         "raw_output": raw_output,
         "cost_usd": round(cost, 6)

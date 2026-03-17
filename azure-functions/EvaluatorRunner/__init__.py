@@ -8,7 +8,7 @@ from azure.cosmos import exceptions
 
 from shared.audit import audit_log
 from shared.cosmos import evaluators_read, evaluations_write
-from Templates.engine import run_evaluator
+from Templates.engine import run_evaluator, METHOD_REGISTRY
 
 
 # --------------------------------------------------
@@ -196,13 +196,68 @@ def main(documents: DocumentList):
             try:
 
                 normalized = normalize_trace(trace)
+                # ---------------------------------------------
+                # Run trace-level evaluation methods (once)
+                # ---------------------------------------------
+                # Dynamic Field Selection (Comparison Map)
+                # ---------------------------------------------
+                cmap = exec_cfg.get("comparison_map", {"source": "context", "target": "response"})
+                src_key = cmap.get("source", "context")
+                tgt_key = cmap.get("target", "response")
+
+                val1 = normalized.get(src_key, "")
+                val2 = normalized.get(tgt_key, "")
+
+                # ---------------------------------------------
+                # Run trace-level evaluation methods (once)
+                # ---------------------------------------------
+                method_scores = {}
+
+                methods = exec_cfg.get("methods", [])
+
+                for m in methods:
+                    method_type = m.get("type")
+                    fn = METHOD_REGISTRY.get(method_type)
+                    if not fn:
+                        logging.warning(f"[EvaluatorRunner] Unsupported method: {method_type}")
+                        continue
+                    method_scores[method_type] = fn(val1, val2)
+
+                # -------------------------------
+                # Aggregate Metric Score (Weighted)
+                # -------------------------------
+                weighted_metric_sum = 0.0
+                total_method_weight = 0.0
+                logic_parts = []
+
+                for m in methods:
+                    m_type = m.get("type")
+                    m_weight = m.get("weight", 0)
+                    m_score = method_scores.get(m_type)
+
+                    if m_score is not None:
+                        # If no weight provided in JSON, default to 1.0 for simple averaging
+                        actual_w = m_weight if m_weight > 0 else 1.0
+                        
+                        weighted_metric_sum += m_score * actual_w
+                        total_method_weight += actual_w
+                        
+                        logic_parts.append(f"({actual_w} * {m_score})")
+
+                metric_calculation = "No metrics"
+                if total_method_weight > 0:
+                    metric_score = round(weighted_metric_sum / total_method_weight, 2)
+                    metric_calculation = f"Weighted Sum ({src_key} vs {tgt_key}): ({' + '.join(logic_parts)}) / {total_method_weight} = {metric_score}"
+                else:
+                    metric_score = None
 
                 for deployment in deployments:
 
                     result = run_evaluator(
                         evaluator_id,
                         normalized,
-                        deployment=deployment
+                        deployment=deployment,
+                        trace_methods=method_scores
                     )
 
                     score = result.get("score")
@@ -221,30 +276,56 @@ def main(documents: DocumentList):
                     total_eval_cost += cost
 
                 # -------------------------------
-                # Aggregate score
+                # Aggregate LLM score
                 # -------------------------------
 
                 score_values = list(scores.values())
 
-                final_score = None
+                llm_ensemble_score = None
                 variance = None
 
                 if score_values:
 
-                    final_score = round(
+                    llm_ensemble_score = round(
                         sum(score_values) / len(score_values),
                         2
                     )
 
                     if len(score_values) > 1:
 
-                        mean = final_score
+                        mean = llm_ensemble_score
 
                         variance = round(
                             sum((s - mean) ** 2 for s in score_values)
                             / len(score_values),
                             4,
                         )
+
+                # -------------------------------
+                # Hybrid Aggregation (Dynamic Weights)
+                # -------------------------------
+                
+                # Read metric_weight from config, fallback to 0.5
+                metric_weight = exec_cfg.get("metric_weight", 0.5)
+                
+                # Defensive check: ensure within [0, 1]
+                if not isinstance(metric_weight, (int, float)) or not (0 <= metric_weight <= 1):
+                    metric_weight = 0.5
+                
+                # Derive llm_weight
+                llm_weight = round(1.0 - metric_weight, 2)
+
+                # Default to 1.0 if no LLM score available to avoid penalizing grounding
+                safe_llm_score = llm_ensemble_score if llm_ensemble_score is not None else 1.0
+                
+                if metric_score is None:
+                    final_score = safe_llm_score
+                else:
+                    final_score = round(
+                        (metric_weight * metric_score) +
+                        (llm_weight * safe_llm_score),
+                        2
+                    )
 
                 # -------------------------------
                 # Aggregate classification
@@ -324,7 +405,10 @@ def main(documents: DocumentList):
                 "individual_scores": scores,
                 "individual_classifications": classifications,
 
-                "ensemble_score": final_score,
+                "llm_ensemble_score": llm_ensemble_score,
+                "metric_score": metric_score,
+                "metric_calculation": metric_calculation,
+                
                 "variance": variance,
                 "agreement": agreement,
                 "unstable": unstable,

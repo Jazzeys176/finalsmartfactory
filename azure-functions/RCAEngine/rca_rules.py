@@ -3,7 +3,7 @@ THRESHOLDS = {
     "moderate_retrieval_low": 0.6,
     "moderate_retrieval_high": 0.75,
     "context_ignore": 0.45,
-    "hallucination": 0.5,
+    "hallucination": 0.60,
     "weak_retrieval_hallucination": 0.65,
     "ungrounded_context": 0.3,
     "low_context_utilization": 0.5,
@@ -11,12 +11,13 @@ THRESHOLDS = {
     "context_tokens_min": 100,
     "context_tokens_max": 3000,
     "temperature": 0.7,
-    "conciseness": 0.45,
+    "conciseness": 0.6,
     "completion_tokens": 450
 }
 
 
 def analyze_trace(trace, evals):
+    
 
     findings = []
     evidence = []
