@@ -97,10 +97,11 @@ class GeminiAdapter(BaseProviderAdapter):
 
         docs = meta.get("documents", []) or []
         scores = meta.get("scores", []) or []
+        threshold = meta.get("threshold", 0.6)   # ✅ ADD THIS
 
         documents_found = len(docs)
 
-        metrics = compute_retrieval_metrics(scores)
+        metrics = compute_retrieval_metrics(scores, threshold)  # ✅ MODIFY THIS
 
         return RetrievalInfo(
             executed=True,

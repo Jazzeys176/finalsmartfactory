@@ -90,8 +90,9 @@ class GroqAdapter(BaseProviderAdapter):
 
         documents_found = len(docs)
 
-        metrics = compute_retrieval_metrics(scores)
+        threshold = meta.get("threshold", 0.6)
 
+        metrics = compute_retrieval_metrics(scores, threshold)
         return RetrievalInfo(
             executed=True,
             documents_found=documents_found,

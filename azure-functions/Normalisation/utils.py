@@ -143,8 +143,7 @@ def clean_text(text: str) -> str:
 
     return text.strip()
 
-
-def compute_retrieval_metrics(scores):
+def compute_retrieval_metrics(scores, threshold):
 
     if not scores:
         return {
@@ -153,6 +152,18 @@ def compute_retrieval_metrics(scores):
             "max_score": None,
             "std_score": None,
             "retrieval_confidence": None,
+        }
+
+    # ✅ filter scores based on threshold
+    scores = [s for s in scores if s >= threshold]
+
+    if not scores:
+        return {
+            "avg_score": None,
+            "min_score": None,
+            "max_score": None,
+            "std_score": None,
+            "retrieval_confidence": 0.0,
         }
 
     avg_score = statistics.mean(scores)
@@ -172,9 +183,9 @@ def compute_retrieval_metrics(scores):
     )
 
     return {
-        "avg_score": avg_score,
-        "min_score": min_score,
-        "max_score": max_score,
-        "std_score": std_score,
+        "avg_score": round(avg_score, 4),
+        "min_score": round(min_score, 4),
+        "max_score": round(max_score, 4),
+        "std_score": round(std_score, 4),
         "retrieval_confidence": retrieval_confidence,
     }
