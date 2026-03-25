@@ -100,6 +100,7 @@ class RetrievalInfo(BaseSchema):
     documents_found: int = 0
     retrieval_confidence: Optional[float] = None
     best_score: Optional[float] = None
+    std_score: Optional[float] = None
 
 
 # =========================================================

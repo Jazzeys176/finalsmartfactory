@@ -98,6 +98,7 @@ class GroqAdapter(BaseProviderAdapter):
             documents_found=documents_found,
             retrieval_confidence=metrics["retrieval_confidence"],
             best_score=metrics["max_score"],
+            std_score=metrics["std_score"], 
         )
 
     # ============================================================
