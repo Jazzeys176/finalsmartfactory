@@ -38,39 +38,22 @@ class GeminiAdapter(BaseProviderAdapter):
     # ============================================================
 
     def extract_usage(self, raw: Dict[str, Any]):
+        """
+        Sum up tokens from all spans in the trace.
+        """
+        total_prompt = 0
+        total_completion = 0
+        total_tokens = 0
 
-        # Prefer LLM span usage
-        for span in raw.get("spans") or []:
-            if span.get("type") == "llm":
+        for span in raw.get("spans", []):
+            usage = self._get_usage(span)
 
-                usage = self._get_usage(span)
+            if usage:
+                total_prompt += int(usage.get("prompt_tokens", 0) or 0)
+                total_completion += int(usage.get("completion_tokens", 0) or 0)
+                total_tokens += int(usage.get("total_tokens", 0) or 0)
 
-                if usage:
-                    prompt = int(usage.get("prompt_tokens", 0) or 0)
-                    completion = int(usage.get("completion_tokens", 0) or 0)
-                    total = int(usage.get("total_tokens", prompt + completion) or 0)
-
-                    return prompt, completion, total
-
-        provider_raw = raw.get("provider_raw", {}) or {}
-
-        # Case 2: normalized provider usage
-        usage = provider_raw.get("usage")
-
-        if usage:
-            prompt = int(usage.get("prompt_tokens", 0) or 0)
-            completion = int(usage.get("completion_tokens", 0) or 0)
-            total = int(usage.get("total_tokens", prompt + completion) or 0)
-            return prompt, completion, total
-
-        # Case 3: native Gemini usage metadata
-        usage_meta = provider_raw.get("usage_metadata", {}) or {}
-
-        prompt = int(usage_meta.get("prompt_token_count", 0) or 0)
-        completion = int(usage_meta.get("candidates_token_count", 0) or 0)
-        total = int(usage_meta.get("total_token_count", prompt + completion) or 0)
-
-        return prompt, completion, total
+        return (total_prompt, total_completion, total_tokens)
 
     # ============================================================
     # RETRIEVAL METADATA
@@ -135,9 +118,8 @@ class GeminiAdapter(BaseProviderAdapter):
 
             latency = int(span.get("latency_ms", 0) or 0)
 
-            cost = 0.0
-            if span_type == "llm":
-                cost = calculate_span_cost(model, prompt, completion)
+            # Calculate cost for all spans with tokens
+            cost = calculate_span_cost(model, prompt, completion)
 
             span_data = dict(
                 span_id=str(span.get("span_id", "unknown")),

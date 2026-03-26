@@ -39,28 +39,22 @@ class GroqAdapter(BaseProviderAdapter):
     # ============================================================
 
     def extract_usage(self, raw: Dict[str, Any]):
+        """
+        Sum up tokens from all spans in the trace.
+        """
+        total_prompt = 0
+        total_completion = 0
+        total_tokens = 0
 
-        # Prefer span-level LLM usage
         for span in raw.get("spans", []):
-            if span.get("type") == "llm":
+            usage = self._get_usage(span)
 
-                usage = self._get_usage(span)
+            if usage:
+                total_prompt += int(usage.get("prompt_tokens", 0) or 0)
+                total_completion += int(usage.get("completion_tokens", 0) or 0)
+                total_tokens += int(usage.get("total_tokens", 0) or 0)
 
-                if usage:
-                    return (
-                        int(usage.get("prompt_tokens", 0) or 0),
-                        int(usage.get("completion_tokens", 0) or 0),
-                        int(usage.get("total_tokens", 0) or 0),
-                    )
-
-        # Fallback: provider raw usage
-        usage = raw.get("provider_raw", {}).get("token_usage", {})
-
-        return (
-            int(usage.get("prompt_tokens", 0) or 0),
-            int(usage.get("completion_tokens", 0) or 0),
-            int(usage.get("total_tokens", 0) or 0),
-        )
+        return (total_prompt, total_completion, total_tokens)
 
     # ============================================================
     # RETRIEVAL METADATA (SPAN-BASED)
@@ -125,9 +119,8 @@ class GroqAdapter(BaseProviderAdapter):
 
             span_type = str(span.get("type", "unknown"))
 
-            cost = 0.0
-            if span_type == "llm":
-                cost = calculate_span_cost(model, prompt, completion)
+            # Calculate cost for all spans with tokens
+            cost = calculate_span_cost(model, prompt, completion)
 
             span_data = dict(
                 span_id=str(span.get("span_id", "unknown")),
