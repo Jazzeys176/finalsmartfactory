@@ -8,11 +8,9 @@ interface Session {
   total_tokens: number;
   total_cost_usd: number;
   total_cost_micro_usd: number;
-
   created?: string;
   session_start?: string;
   session_end?: string;
-
   session_duration_ms?: number;
 }
 
