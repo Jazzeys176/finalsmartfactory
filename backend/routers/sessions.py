@@ -113,12 +113,8 @@ def list_sessions():
             cost_obj = t.get("cost", {})
             perf_obj = t.get("performance", {})
 
-            session_id = session_obj.get("session_id")
+            session_id = session_obj.get("session_id") or t.get("session_id")
             trace_id = t.get("trace_id")
-
-            # Get session info from nested object or flat structure
-            session_data = t.get("session", {}) or {}
-            session_id = session_data.get("session_id") or t.get("session_id")
             if not session_id:
                 continue
 
@@ -136,21 +132,12 @@ def list_sessions():
 
             s["generation_cost_usd"] += gen_cost
             s["evaluation_cost_usd"] += eval_cost
-            # Cost
-            cost_obj = t.get("cost", {}) or {}
-            cost_usd = cost_obj.get("total_cost_usd", 0.0) or t.get("cost", 0.0)
-            s["total_cost_usd"] += cost_usd
-            s["total_cost_micro_usd"] += int(cost_usd * 1_000_000)
 
             s["avg_latency_ms"] += perf_obj.get("latency_ms", 0)
 
             for ev_name, score in trace_eval_scores.get(trace_id, {}).items():
                 s["eval_sum"][ev_name] += score
                 s["eval_count"][ev_name] += 1
-
-            ts = normalize_ts(request_obj.get("timestamp"))
-
-            if ts is not None:
 
             # Timestamps
             ts = normalize_ts(request_obj.get("timestamp") or t.get("timestamp"))
@@ -277,24 +264,15 @@ def get_session(session_id: str):
                 eval_sum[evaluator] += score
                 eval_count[evaluator] += 1
 
-        generation_cost = sum(
-            t.get("cost", {}).get("total_cost_usd", 0.0) for t in traces
-        )
-
         evaluation_cost = sum(trace_eval_cost.values())
 
-        timestamps = [
-            normalize_ts(t.get("request", {}).get("timestamp")) for t in traces
-        ]
-
-        timestamps = [t for t in timestamps if t is not None]
         first_session = traces[0].get("session", {}) or {}
         first_request = traces[0].get("request", {}) or {}
 
         # Get user_id from nested structure
         user_id = first_session.get("user_id") or traces[0].get("user_id", "unknown")
 
-        total_cost_usd = 0.0
+        generation_cost = 0.0
         total_tokens = 0
         total_latency_ms = 0
 
@@ -305,7 +283,7 @@ def get_session(session_id: str):
             total_tokens += usage.get("total_tokens", 0) or t.get("tokens", 0)
             
             cost_obj = t.get("cost", {}) or {}
-            total_cost_usd += cost_obj.get("total_cost_usd", 0.0) or t.get("cost", 0.0)
+            generation_cost += cost_obj.get("total_cost_usd", 0.0) or t.get("cost", 0.0)
 
             perf_obj = t.get("performance", {}) or {}
             total_latency_ms += perf_obj.get("latency_ms", 0) or 0
@@ -345,40 +323,21 @@ def get_session(session_id: str):
 
         session = {
             "session_id": session_id,
-            "user_id": traces[0].get("session", {}).get("user_id", "unknown"),
-            "environment": traces[0].get("request", {}).get("environment"),
-            "trace_count": len(traces),
-            "total_tokens": sum(
-                t.get("usage", {}).get("total_tokens", 0) for t in traces
-            ),
-            "generation_cost_usd": safe_round(generation_cost),
-            "evaluation_cost_usd": safe_round(evaluation_cost),
-            "total_cost_usd": safe_round(generation_cost + evaluation_cost),
-            "avg_latency_ms": safe_round(
-                sum(t.get("performance", {}).get("latency_ms", 0) for t in traces)
-                / len(traces),
-                2,
-            ),
-            "session_start": ts_to_iso(created),
-            "session_end": ts_to_iso(effective_end),
-            "session_duration_ms": (
-                int((effective_end - created) * 1000)
-                if created and effective_end
-                else None
-            ),
-            "avg_scores": avg_scores,
             "user_id": user_id,
             "environment": first_request.get("environment"),
             "trace_count": len(traces),
             "total_tokens": total_tokens,
-            "total_cost_usd": safe_round(total_cost_usd, 6),
-            "total_cost_micro_usd": int(total_cost_usd * 1_000_000),
+            "generation_cost_usd": safe_round(generation_cost),
+            "evaluation_cost_usd": safe_round(evaluation_cost),
+            "total_cost_usd": safe_round(generation_cost + evaluation_cost, 6),
+            "total_cost_micro_usd": int((generation_cost + evaluation_cost) * 1_000_000),
             "avg_latency_ms": safe_round(total_latency_ms / len(traces), 2) if len(traces) > 0 else 0,
             "created": created,
             "last_activity": last_activity,
             "session_start": ts_to_iso(created) if created else None,
             "session_end": ts_to_iso(effective_end) if effective_end else None,
             "session_duration_ms": int((effective_end - created) * 1000) if created and effective_end else None,
+            "avg_scores": avg_scores,
             "traces": traces,
         }
 
