@@ -444,8 +444,8 @@ export default function TraceDetails() {
                                     <span
                                         key={f}
                                         className={`px-3 py-1 rounded-full text-xs ${f === "no_anomaly_detected"
-                                                ? "bg-[#0d2a1f] text-[#6ee7b7]"
-                                                : "bg-[#3a1d16] text-[#ffb29b]"
+                                            ? "bg-[#0d2a1f] text-[#6ee7b7]"
+                                            : "bg-[#3a1d16] text-[#ffb29b]"
                                             }`}
                                     >
                                         {f.replace(/_/g, " ")}
@@ -530,11 +530,11 @@ export default function TraceDetails() {
                 <div className="bg-[#161a23] border border-[#1e2330] p-4 text-sm font-mono">
 
                     {activeTab === "input" && (
-                        <pre>{JSON.stringify(trace.input, null, 2)}</pre>
+                        <pre className="whitespace-pre-wrap break-words">{JSON.stringify(trace.input, null, 2)}</pre>
                     )}
 
                     {activeTab === "output" && (
-                        <pre>{JSON.stringify(trace.output, null, 2)}</pre>
+                        <pre className="whitespace-pre-wrap break-words">{JSON.stringify(trace.output, null, 2)}</pre>
                     )}
 
                     {activeTab === "metadata" && (

@@ -38,10 +38,16 @@ dist-ssr/
 *.duckdb
 *.db
 *.sqlite
+<<<<<<< Updated upstream
 restore.md
 start_system
 templates_evaluators.txt
 README_monitor.md
+=======
+start_system
+templates_evaluators.txt
+
+>>>>>>> Stashed changes
 # --- Azure Specific ---
 .azure/
 .funcignore
